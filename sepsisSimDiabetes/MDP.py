@@ -640,6 +640,38 @@ class MDP(object):
             return False
 
         return True
+    
+    def random_select_action(self):
+        feasible_socs = []
+        
+        for soc in range(State.NUM_SOC):
+            if self.soc_feasibility(soc):
+                feasible_socs.append(soc)
+                
+        if len(feasible_socs) == 0:
+            feasible_socs = [self.state.soc_state]
+            
+        soc = np.random.choice(feasible_socs)
+        rules = SOC_TREATMENT_FEASIBILITY[soc]
+        
+        antibiotic = np.random.choice(rules["antibiotic"])
+        ventilation = np.random.choice(rules["ventilation"])
+        vasopressors = np.random.choice(rules["vasopressors"])
+        noninv_ventilation = np.random.choice(rules["noninvasive ventilation"])
+
+        if ventilation and noninv_ventilation:
+            if (np.random.binomial(1, .5) == 0):
+                noninv_ventilation = 0
+            else:
+                ventilation = 0
+
+        return Action(selected_actions={
+            "antibiotic": antibiotic,
+            "ventilation": ventilation,
+            "noninvasive ventilation": noninv_ventilation,
+            "vasopressors": vasopressors,
+            "soc": soc
+            })
         
 
     def select_actions(self):

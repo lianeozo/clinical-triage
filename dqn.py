@@ -6,6 +6,7 @@ from matplotlib import pyplot as plt
 import matplotlib
 from sepsisSimDiabetes.MDP import MDP
 from sepsisSimDiabetes.Action import Action
+from sepsisSimDiabetes.State import State
 
 import torch
 import torch.nn as nn
@@ -54,8 +55,7 @@ class DQN(nn.Module):
             nn.LeakyReLU(),
             nn.Linear(hidden_dim, hidden_dim),
             nn.LeakyReLU(),
-            nn.Linear(hidden_dim, n_actions),
-            nn.Sigmoid()
+            nn.Linear(hidden_dim, n_actions)
         )
 
     def forward(self, obs):
@@ -138,18 +138,18 @@ def train_dqn(memory, policy_net, target_net, optimizer, num_episodes, T):
     episode_durations = []
     for i_episode in range(num_episodes):
         # Initialize the environment and get its state
-        mdp = MDP()
-        state = mdp.state.get_state_idx()
+        mdp = MDP(init_state_idx=None, policy_array=None, p_diabetes=0.2)
+        state = mdp.get_observation()
         state = torch.tensor(state, dtype=torch.float32, device=device).unsqueeze(0)
         for t in T:
             action = select_action(state, policy_net, mdp, steps_done)
-            reward = mdp.transition(Action(action_idx=action))
+            reward = torch.tensor([mdp.transition(Action(action))], device=device, dtype=torch.float32)
             next_state = torch.tensor(mdp.state.get_state_idx(), dtype=torch.float32, device=device).unsqueeze(0)
     
             # Store the transition in memory
             memory.push(state, action, next_state, reward)
             state = next_state
-            optimize_model()
+            optimize_model(memory, policy_net, target_net, optimizer)
             steps_done += 1
     
             # Soft update of the target network's weights
@@ -160,9 +160,11 @@ def train_dqn(memory, policy_net, target_net, optimizer, num_episodes, T):
                 target_net_state_dict[key] = policy_net_state_dict[key]*TAU + target_net_state_dict[key]*(1-TAU)
             target_net.load_state_dict(target_net_state_dict)
     
-            if done:
+            if mdp.check_absorbing_state():
                 episode_durations.append(t + 1)
                 plot_durations(episode_durations)
                 break
     
     print('Complete')
+    
+    
