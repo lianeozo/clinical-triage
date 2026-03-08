@@ -135,22 +135,19 @@ def plot_durations(episode_durations, show_result=False):
 
 def train_dqn(memory, policy_net, target_net, optimizer, num_episodes, T):
     steps_done = 0
+    done = False
     episode_durations = []
     for i_episode in range(num_episodes):
         # Initialize the environment and get its state
         mdp = MDP()
-        state = mdp.state.get_state_idx()
         observation = torch.tensor(mdp.get_observation(), dtype=torch.float32, device=device).unsqueeze(0)
-        state = torch.tensor(state, dtype=torch.float32, device=device).unsqueeze(0)
         for t in T:
             action = select_action(state, policy_net, mdp, steps_done)
             reward = mdp.transition(Action(action_idx=action))
-            next_state = torch.tensor(mdp.state.get_state_idx(), dtype=torch.float32, device=device).unsqueeze(0)
             next_observation = torch.tensor(mdp.get_observation(), dtype=torch.float32, device=device).unsqueeze(0)
     
             # Store the transition in memory
             memory.push(observation, action, next_observation, reward)
-            state = next_state
             optimize_model()
             steps_done += 1
     
@@ -161,6 +158,8 @@ def train_dqn(memory, policy_net, target_net, optimizer, num_episodes, T):
             for key in policy_net_state_dict:
                 target_net_state_dict[key] = policy_net_state_dict[key]*TAU + target_net_state_dict[key]*(1-TAU)
             target_net.load_state_dict(target_net_state_dict)
+
+            done = mdp.state.check_absorbing_state()
     
             if done:
                 episode_durations.append(t + 1)
