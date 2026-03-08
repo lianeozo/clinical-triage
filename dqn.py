@@ -71,7 +71,7 @@ def select_action(state, policy_net, mdp, steps_done):
         with torch.no_grad():
             return policy_net(state).max(1).indices.view(1, 1)
     else:
-        return torch.tensor([[random.randint(0, Action.NUM_ACTIONS_TOTAL)]], device=device, dtype=torch.long)
+        return torch.tensor([[mdp.random_select_action()]], device=device, dtype=torch.long)
 
 def optimize_model(memory, policy_net, target_net, optimizer):
     if len(memory) < BATCH_SIZE:
