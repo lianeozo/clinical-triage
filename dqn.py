@@ -4,6 +4,7 @@ from collections import namedtuple, deque
 import math
 from matplotlib import pyplot as plt
 import matplotlib
+from sepsisSimDiabetes.MDP import MDP
 
 import torch
 import torch.nn as nn
@@ -60,7 +61,7 @@ class DQN(nn.Module):
         output = self.network(obs)
         return output
 
-def select_action(state):
+def select_action(state, policy_net, mdp, steps_done):
     sample = random.random()
     eps_threshold = EPS_END + (EPS_START - EPS_END) * \
         math.exp(-1. * steps_done / EPS_DECAY)
@@ -69,7 +70,7 @@ def select_action(state):
         with torch.no_grad():
             return policy_net(state).max(1).indices.view(1, 1)
     else:
-        return torch.tensor([[env.action_space.sample()]], device=device, dtype=torch.long)
+        return torch.tensor([[mdp.action_space.sample()]], device=device, dtype=torch.long)
 
 def optimize_model(memory, policy_net, target_net, optimizer):
     if len(memory) < BATCH_SIZE:
@@ -131,23 +132,18 @@ def plot_durations(episode_durations, show_result=False):
         else:
             display.display(plt.gcf())
 
-def train_dqn(memory, policy_net, target_net, optimizer, num_episodes):
+def train_dqn(memory, policy_net, target_net, optimizer, num_episodes, T):
     steps_done = 0
     episode_durations = []
     for i_episode in range(num_episodes):
         # Initialize the environment and get its state
-        state, info = env.reset()
+        mdp = MDP()
+        state = mdp.state.get_state_idx()
         state = torch.tensor(state, dtype=torch.float32, device=device).unsqueeze(0)
-        for t in count():
-            action = select_action(state)
-            observation, reward, terminated, truncated, _ = env.step(action.item())
-            reward = torch.tensor([reward], device=device)
-            done = terminated or truncated
-    
-            if terminated:
-                next_state = None
-            else:
-                next_state = torch.tensor(observation, dtype=torch.float32, device=device).unsqueeze(0)
+        for t in T:
+            action = select_action(state, policy_net, mdp, steps_done)
+            reward = mdp.transition(Action(action_idx=a))
+            next_state = torch.tensor(mdp.state.get_state_idx(), dtype=torch.float32, device=device).unsqueeze(0)
     
             # Store the transition in memory
             memory.push(state, action, next_state, reward)
