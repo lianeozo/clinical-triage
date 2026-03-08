@@ -131,8 +131,8 @@ def plot_durations(episode_durations, show_result=False):
         else:
             display.display(plt.gcf())
 
-def train_dqn(memory, policy_net, target_net. optimizer, num_episodes):
-    steps_done
+def train_dqn(memory, policy_net, target_net, optimizer, num_episodes):
+    steps_done = 0
     episode_durations = []
     for i_episode in range(num_episodes):
         # Initialize the environment and get its state
