@@ -144,6 +144,7 @@ def train_dqn(memory, policy_net, target_net, optimizer, num_episodes, T):
         for t in T:
             action = select_action(state, policy_net, mdp, steps_done)
             reward = mdp.transition(Action(action_idx=action))
+            reward = torch.tensor(reward, dtype=torch.float32, device=device).unsqueeze(0)
             next_observation = torch.tensor(mdp.get_observation(), dtype=torch.float32, device=device).unsqueeze(0)
     
             # Store the transition in memory
