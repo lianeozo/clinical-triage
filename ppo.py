@@ -54,3 +54,28 @@ class CallablePolicy:
         distribution, values = self.model.get_distribution(obs)
 
         return distribution.probs.squeeze(0).cpu().numpy()
+    
+
+#take DataGenerator outputs and return an array of transitions needed for ppo
+def rollout_processing(iter_states, iter_actions, iter_rewards, iter_lengths):
+    
+    N, Tp1, obs_dimensions = iter_states.shape
+    obs, next_obs, act, re, finished = [], [], [], [], []
+
+    for i in range(N):
+
+        L = int(iter_lengths[i,0])
+
+        for t in range(L):
+            obs.append(iter_states[i, t].astype(np.float32))
+
+            next_obs.append(iter_states[i, t+1].astype(np.float32))
+
+            act.append(int(iter_actions[i, t, 0]))
+            re.append(float(iter_rewards[i, t, 0]))
+            finished.append(1.0 if (t == L-1) else 0.0)
+
+        return (np.stack(obs), np.stack(next_obs), np.array(act, dtype=np.int64), np.array(re, dtype=np.float32), np.array(finished, dtype=np.float32))
+    
+
+
