@@ -174,7 +174,7 @@ class MDP(object):
         assert policy_idx_type in ['obs', 'full', 'proj_obs']
 
         # Check the policy dimensions (states x actions)
-        if policy_array is not None:
+        if policy_array is not None and (not callable(policy_array)):
             assert policy_array.shape[1] == Action.NUM_ACTIONS_TOTAL
             if policy_idx_type == 'obs':
                 assert policy_array.shape[0] == State.NUM_OBS_STATES
@@ -676,7 +676,23 @@ class MDP(object):
 
     def select_actions(self):
         assert self.policy_array is not None
-        
+
+        #Making policy_array callable, takes obs as parameterized and then returns probabilities over the actions for PPO
+
+        if callable(self.policy_array):
+            obs = self.get_observation()
+            probabilities = self.policy_array(obs)
+            probabilities = np.asarray(probabilities, dtype = np.float64)
+
+            #clip
+            probabilities = np.clip(probabilities, 1e-9, 1.0)
+            probabilities = probabilities / probabilities.sum()
+
+            #random selection
+            a = np.random.choice(Action.NUM_ACTIONS_TOTAL, p = probabilities)
+            return Action(action_idx=int(a))
+
+        #keeping the rest of the tabular behavior non PPO functionality
         state_idx = self.state.get_state_idx(self.policy_idx_type)
         probs = self.policy_array[state_idx]
         
