@@ -168,3 +168,4 @@ def train_dqn(memory, policy_net, target_net, optimizer, num_episodes, T):
                 break
     
     print('Complete')
+    return policy_net, target_net
