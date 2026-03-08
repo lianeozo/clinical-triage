@@ -10,7 +10,7 @@ Initial distribution:
 
 Effect of vasopressors on if diabetic:
     raise blood pressure: normal -> hi w.p. .9, lo -> normal w.p. .5, lo -> hi w.p. .4
-    raise blood glucose by 1 w.p. .5
+    raise blood glucose by 1 w./ p. .5
 
 Effect of vasopressors off if diabetic:
     blood pressure falls by 1 w.p. .05 instead of .1
@@ -23,44 +23,117 @@ Ref: https://www.ncbi.nlm.nih.gov/pmc/articles/PMC4530321/
 
 Additional fluctuation regardless of other changes
 This order is applied:
-    antibiotics, ventilation, vasopressors, fluctuations
+    antibiotics, ventilation, non-invasive ventilation, vasopressors, fluctuations
 '''
 
 # ----------------------------------------------------
 # SITE-OF-CARE SPECS
 # ----------------------------------------------------
 
+SOC_STATE_TO_DICT_VARS = {
+    'o_doc': 'outp_doc_state',
+    'o_nurse': 'outp_nurse_state',
+    'a_doc': 'acute_doc_state',
+    'a_nurse': 'acute_nurse_state',
+    'a_beds': 'acute_bed_state',
+    'i_doc': 'icu_doc_state',
+    'i_nurse': 'icu_nurse_state',
+    'i_beds': 'icu_bed_state'
+}
+
 SOC_CAPACITY_PRESSURE = {
-    State.ASYNC: 0.01,
-    State.AMBULATORY: 0.02,
-    State.HAH: 0.03,
-    State.FACILITY: 0.05,
-    State.ICU: 0.1
+    State.ASYNC: {
+        # One patient is a negligible load for async care
+        'o_doc': 0.005,
+        'o_nurse': 0.005,
+        # Does not affect acute/ICU
+        'a_doc': 0.0,
+        'a_nurse': 0.0,
+        'a_beds': 0.0,
+        'i_doc': 0.0,
+        'i_nurse': 0.0,
+        'i_beds': 0.0
+    },
+    
+    State.AMBULATORY: {
+        # Higher load than async
+        'o_doc': 0.02,
+        'o_nurse': 0.02,
+        # Does not affect acute/ICU
+        'a_doc': 0.0,
+        'a_nurse': 0.0,
+        'a_beds': 0.0,
+        'i_doc': 0.0,
+        'i_nurse': 0.0,
+        'i_beds': 0.0                    
+    },
+    
+    State.HAH: {
+        # Does not affect outpatient
+        'o_doc': 0.0,
+        'o_nurse': 0.0,
+        # Affects acute but not ICU
+        'a_doc': 0.05,
+        'a_nurse': 0.05,
+        'a_beds': 0.0, # bed is in the home
+        'i_doc': 0.0,
+        'i_nurse': 0.0,
+        'i_beds': 0.0
+    },
+    
+    State.FACILITY: {
+        # Does not affect outpatient
+        'o_doc': 0.0,
+        'o_nurse': 0.0,
+        # Affects acute but not ICU
+        'a_doc': 0.05,
+        'a_nurse': 0.06, # More nurses needed than doctors on average
+        'a_beds': 0.05,
+        'i_doc': 0.0,
+        'i_nurse': 0.0,
+        'i_beds': 0.0
+    },
+    
+    State.ICU: {
+        # Does not affect outpatient
+        'o_doc': 0.0,
+        'o_nurse': 0.0,
+        # Affects ICU but not acute
+        'a_doc': 0.0,
+        'a_nurse': 0.0, # More nurses needed than doctors on average
+        'a_beds': 0.0,
+        'i_doc': 0.1,
+        'i_nurse': 0.15,
+        'i_beds': 0.2 # Often much fewer ICU beds than inpatient
+    }   
 }
 
 SOC_RESOURCE_REQUIREMENTS = {
-    State.ASYNC: (0, 0, 1), # capacity bin of beds, nurses, doctors required
-    State.AMBULATORY: (0, 1, 1),
-    State.HAH: (0, 1, 1),
-    State.FACILITY: (1, 1, 1),
-    State.ICU: (1, 2, 1)
+    State.ASYNC: dict(o_doc=1,  o_nurse=0, a_doc=0, a_nurse=0, a_beds=0, i_doc=0, i_nurse=0, i_beds=0),
+    State.AMBULATORY: dict(o_doc=1,  o_nurse=1, a_doc=0, a_nurse=0, a_beds=0, i_doc=0, i_nurse=0, i_beds=0),
+    State.HAH: dict(o_doc=0,  o_nurse=0, a_doc=1, a_nurse=1, a_beds=0, i_doc=0, i_nurse=0, i_beds=0),
+    State.FACILITY: dict(o_doc=0,  o_nurse=0, a_doc=1, a_nurse=1, a_beds=1, i_doc=0, i_nurse=0, i_beds=0),
+    State.ICU: dict(o_doc=0,  o_nurse=0, a_doc=0, a_nurse=0, a_beds=0, i_doc=1, i_nurse=1, i_beds=1),
 }
 
 SOC_TREATMENT_FEASIBILITY = {
     State.ASYNC: {
         "ventilation": [0], # impossible
+        "noninvasive ventilation": [0], # impossible 
         "vasopressors": [0], # impossible
         "antibiotic": [0,1] # possible
     },
 
     State.AMBULATORY: {
         "ventilation": [0],
+        "noninvasive ventilation": [0],
         "vasopressors": [0],
         "antibiotic": [0,1]
     },
 
     State.HAH: {
-        "ventilation": [0,1], # only non-invasive but treat as allowed (to implemnent later)
+        "ventilation": [0], 
+        "noninvasive ventilation": [0,1], # only non-invasive but treatment as allowed
         "vasopressors": [0],
         "antibiotic": [0,1]
     },
@@ -68,15 +141,26 @@ SOC_TREATMENT_FEASIBILITY = {
     State.FACILITY: {
         "ventilation": [0,1],
         "vasopressors": [0,1],
+        "noninvasive ventilation": [0,1], # both non-invasive and invasive allowed
         "antibiotic": [0,1]
     },
 
     State.ICU: {
         "ventilation": [0,1],
+        "noninvasive ventilation": [0,1], # both non-invasive and invasive allowed
         "vasopressors": [0,1],
         "antibiotic": [0,1]
     }
 }
+
+VITAL_MASK_PROBS = {                 
+    State.ASYNC: [0.4,  0.4,   0.4, 0.2], # hr, sysbp, percoxyg, glucose
+    State.AMBULATORY: [1.0,  1.0,   1.0, 0.6],
+    State.HAH: [0.8,  0.8,   0.8, 0.5],
+    State.FACILITY: [1.0,  1.0,   1.0, 0.9],
+    State.ICU: [1.0,  1.0,   1.0, 1.0],
+}
+
 
 class MDP(object):
 
@@ -155,7 +239,8 @@ class MDP(object):
             init_state = State(
                     state_idx=state_idx, idx_type=idx_type,
                     diabetic_idx=diabetic_idx)
-
+        
+        self.current_step = 0
         return init_state
 
     def generate_random_state(self, diabetic_idx=None):
@@ -185,9 +270,20 @@ class MDP(object):
         
         # Doctor & nurse capacity usually avail and zero capacity rare.
         # 0 - critical shortage, 1 - tight, 2 - moderate, 3 - largely available
-        doc_state = np.random.choice(np.arange(State.NUM_CAP_DOC), p = np.array([.05, .20, .45, .30]))
-        nurse_state = np.random.choice(np.arange(State.NUM_CAP_NURSE), p = np.array([.05, .20, .45, .30]))
-        bed_state = np.random.choice(np.arange(State.NUM_CAP_BEDS), p = np.array([.10, .30, .40, .20]))
+        
+        doc_p = np.array([.05, .20, .45, .30])
+        nurse_p = np.array([.05, .20, .45, .30])
+        bed_p = np.array([.10, .30, .40, .20])
+
+        
+        outp_doc_state = np.random.choice(np.arange(State.NUM_OUTP_DOC), p=doc_p)
+        outp_nurse_state  = np.random.choice(np.arange(State.NUM_OUTP_NURSE), p=nurse_p)
+        acute_doc_state = np.random.choice(np.arange(State.NUM_ACUTE_DOC), p=doc_p)
+        acute_nurse_state = np.random.choice(np.arange(State.NUM_ACUTE_NURSE),p=nurse_p)
+        acute_bed_state = np.random.choice(np.arange(State.NUM_ACUTE_BEDS), p=bed_p)
+        icu_doc_state = np.random.choice(np.arange(State.NUM_ICU_DOC), p=doc_p)
+        icu_nurse_state = np.random.choice(np.arange(State.NUM_ICU_NURSE), p=nurse_p)
+        icu_bed_state = np.random.choice(np.arange(State.NUM_ICU_BEDS), p=bed_p)
         
         # ----------------------------------------------------
         # Site of Care bins (conditioned on patient severity)
@@ -212,39 +308,45 @@ class MDP(object):
         antibiotic_state = 0
         vaso_state = 0
         vent_state = 0
+        noninv_vent_state = 0
+        num_switches_state = 0
 
         state_categs = [hr_state, sysbp_state, percoxyg_state,
                 glucose_state, antibiotic_state, vaso_state, vent_state,
-                soc_state, doc_state, bed_state, nurse_state]
+                soc_state, outp_doc_state, outp_nurse_state, acute_doc_state,
+                acute_nurse_state, acute_bed_state, icu_doc_state, icu_nurse_state,
+                icu_bed_state, noninv_vent_state, num_switches_state]
 
         return State(state_categs=state_categs, diabetic_idx=diabetic_idx)
 
     def update_capacity(self):
         soc = self.state.soc_state
-
-        # Defining the probability a patient pushes the system toward lower capacity
-        if soc == State.ASYNC:
-            p = SOC_CAPACITY_PRESSURE[soc]
-        elif soc == State.AMBULATORY:
-            p = SOC_CAPACITY_PRESSURE[soc]
-        elif soc == State.HAH:
-           p = SOC_CAPACITY_PRESSURE[soc]
-        elif soc == State.FACILITY:
-            p = SOC_CAPACITY_PRESSURE[soc]
-        elif soc == State.ICU:
-           p = SOC_CAPACITY_PRESSURE[soc]
-
-        # beds
-        if np.random.uniform() < p:
-            self.state.bed_state = max(0, self.state.bed_state - 1)
-
-        # nurses
-        if np.random.uniform() < p:
-            self.state.nurse_state = max(0, self.state.nurse_state - 1)
-
-        # doctors
-        if np.random.uniform() < p:
-            self.state.doc_state = max(0, self.state.doc_state - 1)
+        soc_pressures = SOC_CAPACITY_PRESSURE[soc]
+        
+         # Capacity updates according to patient
+        for var, p in soc_pressures.items():
+            if p > 0:
+                state_var = SOC_STATE_TO_DICT_VARS[var]
+                if np.random.uniform() < p:
+                    cur_bin = getattr(self.state, state_var)
+                    setattr(self.state, state_var, max(0, cur_bin - 1))
+                
+        for var, state_var in SOC_STATE_TO_DICT_VARS.items():
+            cur_bin = getattr(self.state, state_var)
+            change = np.random.choice([-1, 0, 1])
+            setattr(self.state, state_var, int(np.clip(cur_bin + change, 0, 3)))
+    
+    
+    def get_observation(self):
+        soc = self.state.soc_state
+        probs = VITAL_MASK_PROBS[soc]
+        observations = self.state.get_state_vector().copy()
+        
+        for i, prob in enumerate(probs):
+            if np.random.binomial(1, prob) == 0:
+                observations[i] = -1
+                
+        return observations
         
     
     def transition_antibiotics_on(self):
@@ -289,6 +391,26 @@ class MDP(object):
                 self.state.percoxyg_state = 0
             self.state.vent_state = 0
 
+    def transition_noninv_vent_on(self):
+        '''
+        ventilation state on
+        percent oxygen: low -> normal w.p. .75
+        '''
+        self.state.noninv_vent_state = 1
+        
+        if self.state.percoxyg_state == 0 and np.random.uniform(0,1) < 0.5:
+            self.state.percoxyg_state = 1
+            
+    def transition_noninv_vent_off(self):
+        '''
+        ventilation state off
+        if ventilation was on: percent oxygen: normal -> lo w.p. .1
+        '''
+        if self.state.noninv_vent_state == 1:
+            if self.state.percoxyg_state == 1 and np.random.uniform(0,1) < 0.2:
+                self.state.percoxyg_state = 0
+            self.state.noninv_vent_state = 0
+    
     def transition_vaso_on(self):
         '''
         vasopressor state on
@@ -375,29 +497,61 @@ class MDP(object):
     def calculateReward(self, self_state, action):
         reward = 0
         num_abnormal = self.state.get_num_abnormal()
+        prev_abnormal = self_state.get_num_abnormal()
+        
+        #----------------------------------------------------
+        # Absorbing States
+        # ----------------------------------------------------
+        
         # Penalize death
         if num_abnormal >= 3:
             reward -= 10_000
+            return reward
         # Reward on discharge
         elif num_abnormal == 0 and not self.state.on_treatment():
             reward += 10_000
+            return reward
 
-        # penalize increasing side of care level
-        if action.escalate_care == 1:
-            reward -= 200
-
-        # penalize not increasing level with increased abnormal states
-        if action.escalate_care != 0:
-            if num_abnormal > 2:
-                reward -= 100
-
-        # penalize resource usage
+        
+        # ----------------------------------------------------
+        # Feedback from patient vital sign trajectory
+        # ----------------------------------------------------
+        
+        change_in_abnormal = prev_abnormal - num_abnormal
+        reward += change_in_abnormal * 100 # reward +100/-100 (weighted) for improvement/decline
+        
+        # ----------------------------------------------------
+        # Escalation + descalation cost
+        # ----------------------------------------------------
+        
+        change_in_soc = self.state.soc_state - self_state.soc_state
+        
+        if change_in_soc != 0:
+            self.state.num_switches_state = self_state.num_switches_state + 1
+          
+        # Penalize unnecessary escalation  
+        if change_in_soc > 0 and num_abnormal == 0:
+            reward -= 200 * change_in_soc
+                
+        # Penalize switches the patient's site of care too much
+        if self.current_step >= 3:
+            switch_ratio = self.state.num_switches_state / self.current_step
+            if switch_ratio > 0.25:
+                reward -= 150 * (switch_ratio - 0.25)
+        
+        
+        # ----------------------------------------------------
+        # Treatment Cost
+        # ----------------------------------------------------
+    
         if action.antibiotic == 1:
             reward -= 10
         if action.ventilation == 1:
-            reward -= 100
+            reward -= 60
+        if action.noninv_ventilation == 1:
+            reward -= 40
         if action.vasopressors == 1:
-            reward -= 100
+            reward -= 40
 
         return reward
 
@@ -429,6 +583,14 @@ class MDP(object):
 
         glucose_fluctuate = True
 
+        
+        if action.noninv_ventilation == 1:
+            self.transition_noninv_vent_on()
+            percoxyg_fluctuate = False
+        elif self.state.noninv_vent_state == 1:
+            self.transition_noninv_vent_off()
+            percoxyg_fluctuate = False
+            
         if action.vasopressors == 1:
             self.transition_vaso_on()
             sysbp_fluctuate = False
@@ -440,20 +602,21 @@ class MDP(object):
         self.transition_fluctuate(hr_fluctuate, sysbp_fluctuate, percoxyg_fluctuate, \
             glucose_fluctuate)
         
-        self.state.soc_state = Action.soc
+        self.state.soc_state = action.soc
+        
 
-        return self.calculateReward(start_state, action)
+        self.current_step += 1
+        reward = self.calculateReward(start_state, action)
+        return reward
 
     def soc_feasibility(self, soc):
-        beds_req, nurse_req, doc_req = SOC_RESOURCE_REQUIREMENTS[soc]
+        reqs = SOC_RESOURCE_REQUIREMENTS[soc]
         
-        if self.state.bed_state < beds_req:
-            return False
-        if self.state.nurse_state < nurse_req:
-            return False
-        if self.state.doc_state < doc_req:
-            return False
-
+        for req in reqs:
+            state_var = SOC_STATE_TO_DICT_VARS[req]
+            cur_bin = getattr(self.state, state_var)
+            if cur_bin < reqs[req]:
+                return False
         return True
 
     def treatment_feasibility(self, action):
@@ -467,6 +630,13 @@ class MDP(object):
             return False
 
         if action.antibiotic not in rules["antibiotic"]:
+            return False
+        
+        if action.noninv_ventilation not in rules["noninvasive ventilation"]:
+            return False
+        
+        # Can't use both kinds of ventilation
+        if action.ventilation == 1 and action.noninv_ventilation == 1:
             return False
 
         return True
