@@ -135,10 +135,10 @@ def plot_durations(episode_durations, show_result=False):
 
 def train_dqn(memory, policy_net, target_net, optimizer, num_episodes, T):
     steps_done = 0
-    done = False
     episode_durations = []
     for i_episode in range(num_episodes):
         # Initialize the environment and get its state
+        done = False
         mdp = MDP()
         observation = torch.tensor(mdp.get_observation(), dtype=torch.float32, device=device).unsqueeze(0)
         for t in T:
