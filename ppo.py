@@ -54,3 +54,169 @@ class CallablePolicy:
         distribution, values = self.model.get_distribution(obs)
 
         return distribution.probs.squeeze(0).cpu().numpy()
+    
+
+#take DataGenerator outputs and return an array of transitions needed for ppo
+def rollout_processing(iter_states, iter_actions, iter_rewards, iter_lengths):
+    
+    N, Tp1, obs_dimensions = iter_states.shape
+    obs, next_obs, act, re, finished = [], [], [], [], []
+
+    for i in range(N):
+
+        L = int(iter_lengths[i,0])
+
+        for t in range(L):
+            obs.append(iter_states[i, t].astype(np.float32))
+
+            next_obs.append(iter_states[i, t+1].astype(np.float32))
+
+            act.append(int(iter_actions[i, t, 0]))
+            re.append(float(iter_rewards[i, t, 0]))
+            finished.append(1.0 if (t == L-1) else 0.0)
+
+        return (np.stack(obs), np.stack(next_obs), np.array(act, dtype=np.int64), np.array(re, dtype=np.float32), np.array(finished, dtype=np.float32))
+
+
+def calc_gae(rewards, finished, values, next_values, gamma=0.99, lambda_param=0.95):
+    #takes in arrays of shape S 
+    
+    S = rewards.shape[0]
+    advantage = np.zeros(S, dtype=np.float32)
+
+    gae = 0.0
+
+    for t in reversed(range(S)):
+        mask = 1.0 - finished[t]
+
+        delta = rewards[t] + gamma * next_values[t] * mask - values[t]
+
+        #calc of gae
+        gae = delta + gamma * lambda_param * mask * gae
+
+        advantage[t] = gae
+
+    returns = advantage + values
+    return advantage, returns 
+
+
+#ppo training logic 
+def train_ppo(
+        iters = 200, 
+        rollout_episodes = 64, 
+        max_steps = 200, 
+        gamma = 0.99, 
+        lambda_param=0.95, 
+        clip_epsilon = 0.2, 
+        lr = 3e-4, 
+        training_epochs = 4, 
+        minibatch_size = 128, 
+        value_coef = 0.5, 
+        entropy_coef = 0.01, 
+        max_grad_norm = 1.0, 
+        reward_scaling = 1e-4, device="cpu"
+    ):
+
+    obs_dimensions = State.NUM_STATE_VARS
+    n_actions = Action.NUM_ACTIONS_TOTAL
+
+    model = Model(obs_dimensions, n_actions).to(device)
+    optimizer = torch.optim.Adam(model.parameters(), lr = lr)
+
+    dg = DataGenerator()
+
+    for it in range(iters):
+
+        callable_policy = CallablePolicy(model, device=device)
+
+        iter_states, iter_actions, iter_lengths, iter_rewards, _ = dg.simulate(
+            rollout_episodes, 
+            max_steps, 
+            policy=callable_policy,
+            policy_idx_type="obs", 
+            p_diabetes=0.2, 
+            use_tqdm=False
+        )
+
+        obs_arr, next_obs_arr, act_arr, re_arr, finished_arr = rollout_processing(
+            iter_states, iter_actions, iter_rewards, iter_lengths
+        )
+
+        eps_returns = [iter_rewards[i, :int(iter_lengths[i , 0]), 0].sum() for i in range(rollout_episodes)]
+        avg_ep_ret = float(np.mean(eps_returns))
+        avg_ep_len = float(np.mean(iter_lengths[:, 0]))
+
+        re_arr = re_arr * 1e-4
+
+        obs = torch.tensor(obs_arr, dtype=torch.float32, device=device)
+        next_obs = torch.tensor(next_obs_arr, dtype=torch.float32, device=device)
+        actions = torch.tensor(act_arr, dtype=torch.int64, device=device)
+        dones = torch.tensor(finished_arr, dtype=torch.float32, device=device)
+
+        with torch.no_grad():
+            dist, values = model.get_distribution(obs)
+            old_logp = dist.log_prob(actions)
+            _, next_values = model.get_distribution(next_obs)
+
+
+        adv_np, ret_np = calc_gae(
+            rewards=re_arr,
+            finished=finished_arr,
+            values=values.cpu().numpy(),
+            next_values=next_values.cpu().numpy(),
+            gamma=gamma,
+            lambda_param=lambda_param
+        )
+        adv_np = (adv_np - adv_np.mean()) / (adv_np.std() + 1e-8)
+
+        adv = torch.tensor(adv_np, dtype=torch.float32, device=device)
+        rets = torch.tensor(ret_np, dtype=torch.float32, device=device)
+
+        B = obs.shape[0]
+        idx = torch.arange(B, device=device)
+
+        for _ in range(training_epochs):
+            perm = idx[torch.randperm(B)]
+
+            for start in range(0, B, minibatch_size):
+                mb = perm[start:start + minibatch_size]
+
+                mb_obs = obs[mb]
+                mb_actions = actions[mb]
+                mb_old_logp = old_logp[mb]
+                mb_adv = adv[mb]
+                mb_rets = rets[mb]
+
+                dist, v = model.get_distribution(mb_obs)
+                if v.dim() == 2 and v.size(-1) == 1:
+                    v = v.squeeze(-1)
+                logp = dist.log_prob(mb_actions)
+                ratio = torch.exp(logp - mb_old_logp)
+
+                clipped = torch.clamp(ratio, 1 - clip_epsilon, 1 + clip_epsilon)
+                pg_loss = -(torch.min(ratio * mb_adv, clipped * mb_adv)).mean()
+
+                v_loss = functional.mse_loss(v, mb_rets)
+                ent = dist.entropy().mean()
+
+                loss = pg_loss + value_coef * v_loss - entropy_coef * ent
+
+                optimizer.zero_grad()
+                loss.backward()
+                nn.utils.clip_grad_norm_(model.parameters(), max_grad_norm)
+                optimizer.step()
+
+        print(
+            f"iter={it:03d} | steps={B} | avg_ep_len={avg_ep_len:.1f} "
+            f"| avg_ep_return={avg_ep_ret:.2f}"
+        )
+
+    return model
+
+        
+
+
+
+
+
+
