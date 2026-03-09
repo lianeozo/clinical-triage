@@ -1,5 +1,7 @@
 import numpy as np
 import random
+import os
+import json
 from collections import namedtuple, deque
 import math
 from matplotlib import pyplot as plt
@@ -110,28 +112,36 @@ def optimize_model(memory, policy_net, target_net, optimizer):
     optimizer.step()
 
 def plot_rewards(episode_rewards, show_result=False):
-    plt.figure(2)
-    durations_t = torch.tensor(episode_rewards, dtype=torch.float)
+    plt.figure(1)
+    rewards_t = torch.tensor(episode_rewards, dtype=torch.float)
     if show_result:
-        plt.title('Result')
+        plt.title('Rewards Result')
     else:
         plt.clf()
         plt.title('Training Rewards...')
     plt.xlabel('Episode')
     plt.ylabel('Total Reward')
-    # plt.plot(durations_t.numpy())
-    # Take 100 episode averages and plot them too
-    if len(durations_t) >= 100:
-        means = durations_t.unfold(0, 100, 1).mean(1).view(-1)
-        means = torch.cat((torch.zeros(99), means))
-        xs = np.arange(means.shape[0])
-
-        std_dev = durations_t.unfold(0, 100, 1).std(1).view(-1)
-        std_dev = torch.cat((torch.zeros(99), std_dev))
     
+    # Plot per-episode reward
+    xs = np.arange(len(rewards_t))
+    plt.plot(xs, rewards_t.numpy(), alpha=0.3, color='blue')
+    
+    # plt.plot(rewards_t.numpy())
+    if len(rewards_t) >= 20:
+        means = rewards_t.unfold(0, 20, 1).mean(1).view(-1)
+        std_dev = rewards_t.unfold(0, 20, 1).std(1).view(-1)
+        # means = torch.cat((torch.zeros(19), means))
+        # std_dev = torch.cat((torch.zeros(19), std_dev))
+        
+        xs = np.arange(19, len(rewards_t))
         plt.fill_between(xs, means+std_dev, means-std_dev, facecolor='blue', alpha=0.25)
-        plt.plot(means.numpy())
+        plt.plot(xs, means.numpy(), color='blue', linewidth=2)
 
+    plt.plot([], [], alpha=0.3, color='blue', label='Per-episode reward')
+    plt.plot([], [], color='blue', linewidth=2, label='Rolling mean (20 ep)')
+    plt.fill_between([], [], [], facecolor='blue', alpha=0.25, label='Rolling std (20 ep)')
+    plt.legend(loc='upper left')
+    
     plt.pause(0.001)  # pause a bit so that plots are updated
     if is_ipython:
         if not show_result:
@@ -139,6 +149,29 @@ def plot_rewards(episode_rewards, show_result=False):
             display.clear_output(wait=True)
         else:
             display.display(plt.gcf())
+            
+def save_results(episode_rewards, model_name='dqn', save_dir='results'):
+    os.makedirs(save_dir, exist_ok=True)
+
+    results = {
+        'model': model_name,
+        'episode_rewards': episode_rewards,
+        'mean_reward': float(np.mean(episode_rewards)),
+        'std_reward': float(np.std(episode_rewards)),
+        'final_20_mean': float(np.mean(episode_rewards[-20:])),
+        'final_20_std': float(np.std(episode_rewards[-20:])),
+    }
+
+    with open(f'{save_dir}/{model_name}_results.json', 'w') as f:
+        json.dump(results, f, indent=2)
+
+    plot_rewards(episode_rewards, show_result=True)
+    plt.savefig(f'{save_dir}/{model_name}_rewards.png', dpi=150, bbox_inches='tight')
+
+    print(f"\n{model_name} training done")
+    print(f"mean reward: {results['mean_reward']:.2f} +/- {results['std_reward']:.2f}")
+    print(f"last 20 eps: {results['final_20_mean']:.2f} +/- {results['final_20_std']:.2f}")
+    print(f"saved to {save_dir}/")
 
 def train_dqn(memory, policy_net, target_net, optimizer, num_episodes, T):
     steps_done = 0
@@ -177,9 +210,10 @@ def train_dqn(memory, policy_net, target_net, optimizer, num_episodes, T):
             if done or (t == T - 1):
                 episode_durations.append(t + 1)
                 episode_rewards.append(total_reward)
-                if (t % 20 == 0):
+                if (i_episode % 20 == 0):
                     plot_rewards(episode_rewards)
                 break
     
     print('Complete')
-    return policy_net, target_net
+    save_results(episode_rewards, model_name='dqn')
+    return policy_net, target_net, episode_rewards

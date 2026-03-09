@@ -2,11 +2,11 @@ import numpy as np
 import torch
 import torch.nn as nn
 import torch.nn.functional as functional
-
 from sepsisSimDiabetes.DataGenerator import DataGenerator
 from sepsisSimDiabetes.State import State
 from sepsisSimDiabetes.Action import Action 
-from dqn import plot_rewards
+from dqn import plot_rewards, save_results
+
 
 
 
@@ -224,6 +224,7 @@ def train_ppo(
         )
 
     plot_rewards(episode_rewards, show_result=True)
+    save_results(episode_rewards, model_name='ppo')
     return model, episode_rewards
 
         
