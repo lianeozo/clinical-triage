@@ -124,11 +124,13 @@ def plot_rewards(episode_rewards, show_result=False):
     if len(durations_t) >= 100:
         means = durations_t.unfold(0, 100, 1).mean(1).view(-1)
         means = torch.cat((torch.zeros(99), means))
-        plt.plot(means.numpy())
+        xs = np.arange(means.shape[0])
 
         std_dev = durations_t.unfold(0, 100, 1).std(1).view(-1)
         std_dev = torch.cat((torch.zeros(99), std_dev))
-        plt.fill_between(means, means+std_dev, means-std_dev, facecolor='blue', alpha=0.5)
+    
+        plt.fill_between(xs, means+std_dev, means-std_dev, facecolor='blue', alpha=0.25)
+        plt.plot(means.numpy())
 
     plt.pause(0.001)  # pause a bit so that plots are updated
     if is_ipython:
