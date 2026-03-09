@@ -174,7 +174,7 @@ def train_dqn(memory, policy_net, target_net, optimizer, num_episodes, T):
 
             done = mdp.state.check_absorbing_state()
     
-            if done or (t == T - 1):
+            if done or (t == T - 1) or (t % 20 == 0):
                 episode_durations.append(t + 1)
                 episode_rewards.append(total_reward)
                 plot_rewards(episode_rewards)
