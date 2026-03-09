@@ -119,12 +119,16 @@ def plot_rewards(episode_rewards, show_result=False):
         plt.title('Training Rewards...')
     plt.xlabel('Episode')
     plt.ylabel('Total Reward')
-    plt.plot(durations_t.numpy())
+    # plt.plot(durations_t.numpy())
     # Take 100 episode averages and plot them too
     if len(durations_t) >= 100:
         means = durations_t.unfold(0, 100, 1).mean(1).view(-1)
         means = torch.cat((torch.zeros(99), means))
         plt.plot(means.numpy())
+
+        std_dev = durations_t.unfold(0, 100, 1).std(1).view(-1)
+        std_dev = torch.cat((torch.zeros(99), std_dev))
+        plt.fill_between(means, means+std_dev, means-std_dev, facecolor='blue', alpha=0.5)
 
     plt.pause(0.001)  # pause a bit so that plots are updated
     if is_ipython:
