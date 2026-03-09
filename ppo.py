@@ -75,7 +75,13 @@ def rollout_processing(iter_states, iter_actions, iter_rewards, iter_lengths):
             re.append(float(iter_rewards[i, t, 0]))
             finished.append(1.0 if (t == L-1) else 0.0)
 
-        return (np.stack(obs), np.stack(next_obs), np.array(act, dtype=np.int64), np.array(re, dtype=np.float32), np.array(finished, dtype=np.float32))
+        obs_arr = np.stack(obs)
+        next_obs_arr = np.stack(next_obs)
+        act_arr = np.array(act, dtype=np.int64) 
+        rewards_arr = np.array(re, dtype=np.float32)
+        finished_arr = np.array(finished, dtype=np.float32)
+
+    return obs_arr, next_obs_arr, act_arr, rewards_arr, finished_arr
 
 
 def calc_gae(rewards, finished, values, next_values, gamma=0.99, lambda_param=0.95):
