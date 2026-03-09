@@ -4,6 +4,7 @@ from collections import namedtuple, deque
 import math
 from matplotlib import pyplot as plt
 import matplotlib
+from tqdm import tqdm
 from sepsisSimDiabetes.MDP import MDP
 from sepsisSimDiabetes.Action import Action
 from sepsisSimDiabetes.State import State
@@ -108,16 +109,16 @@ def optimize_model(memory, policy_net, target_net, optimizer):
     torch.nn.utils.clip_grad_value_(policy_net.parameters(), 100)
     optimizer.step()
 
-def plot_durations(episode_durations, show_result=False):
-    plt.figure(1)
-    durations_t = torch.tensor(episode_durations, dtype=torch.float)
+def plot_rewards(episode_rewards, show_result=False):
+    plt.figure(2)
+    durations_t = torch.tensor(episode_rewards, dtype=torch.float)
     if show_result:
         plt.title('Result')
     else:
         plt.clf()
-        plt.title('Training...')
+        plt.title('Training Rewards...')
     plt.xlabel('Episode')
-    plt.ylabel('Duration')
+    plt.ylabel('Total Reward')
     plt.plot(durations_t.numpy())
     # Take 100 episode averages and plot them too
     if len(durations_t) >= 100:
@@ -136,15 +137,19 @@ def plot_durations(episode_durations, show_result=False):
 def train_dqn(memory, policy_net, target_net, optimizer, num_episodes, T):
     steps_done = 0
     episode_durations = []
+    episode_rewards = []
+    
     for i_episode in range(num_episodes):
         # Initialize the environment and get its state
         done = False
         mdp = MDP(init_state_idx=None, policy_array=None, p_diabetes=0.2)
         observation = torch.tensor(mdp.get_observation(), dtype=torch.float32, device=device).unsqueeze(0)
+        total_reward = 0
         
         for t in range(T):
             action = select_action(observation, policy_net, mdp, steps_done)
             reward = mdp.transition(Action(action_idx=action.item()))
+            total_reward += reward
             reward = torch.tensor(reward, dtype=torch.float32, device=device).unsqueeze(0)
             next_observation = torch.tensor(mdp.get_observation(), dtype=torch.float32, device=device).unsqueeze(0)
     
@@ -163,9 +168,10 @@ def train_dqn(memory, policy_net, target_net, optimizer, num_episodes, T):
 
             done = mdp.state.check_absorbing_state()
     
-            if done:
+            if done or (t == T - 1):
                 episode_durations.append(t + 1)
-                plot_durations(episode_durations)
+                episode_rewards.append(total_reward)
+                plot_rewards(episode_rewards)
                 break
     
     print('Complete')
