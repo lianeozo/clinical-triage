@@ -6,6 +6,7 @@ import torch.nn.functional as functional
 from sepsisSimDiabetes.DataGenerator import DataGenerator
 from sepsisSimDiabetes.State import State
 from sepsisSimDiabetes.Action import Action 
+from dqn import plot_rewards
 
 
 
@@ -130,6 +131,8 @@ def train_ppo(
     optimizer = torch.optim.Adam(model.parameters(), lr = lr)
 
     dg = DataGenerator()
+    #for plot
+    episode_rewards = []
 
     for it in range(iters):
 
@@ -151,6 +154,9 @@ def train_ppo(
         eps_returns = [iter_rewards[i, :int(iter_lengths[i , 0]), 0].sum() for i in range(rollout_episodes)]
         avg_ep_ret = float(np.mean(eps_returns))
         avg_ep_len = float(np.mean(iter_lengths[:, 0]))
+
+        episode_rewards.append(avg_ep_ret)
+        plot_rewards(episode_rewards, show_result=False)
 
         re_arr = re_arr * 1e-4
 
@@ -217,7 +223,8 @@ def train_ppo(
             f"| avg_ep_return={avg_ep_ret:.2f}"
         )
 
-    return model
+    plot_rewards(episode_rewards, show_result=True)
+    return model, episode_rewards
 
         
 
