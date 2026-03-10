@@ -24,7 +24,7 @@ BATCH_SIZE = 128
 GAMMA = 0.99
 EPS_START = 0.9
 EPS_END = 0.01
-EPS_DECAY = 2500
+# EPS_DECAY = 2500
 TAU = 0.005
 LR = 3e-4
 
@@ -65,14 +65,20 @@ class DQN(nn.Module):
         output = self.network(obs)
         return output
 
-def select_action(state, policy_net, mdp, steps_done):
+def select_action(state, policy_net, mdp, steps_done, eps_decay, random_baseline):
+    if random_baseline:
+        return torch.tensor([[mdp.random_select_action().get_action_idx()]], device = device, dtype=torch.long)
     sample = random.random()
     eps_threshold = EPS_END + (EPS_START - EPS_END) * \
-        math.exp(-1. * steps_done / EPS_DECAY)
+        math.exp(-1. * steps_done / eps_decay)
 
     if sample > eps_threshold:
         with torch.no_grad():
-            return policy_net(state).max(1).indices.view(1, 1)
+            action_idx = policy_net(state).max(1).indices.item()
+            action = Action(action_idx=action_idx)
+        if not mdp.treatment_feasibility(action) or not mdp.soc_feasibility(action.soc):
+                action = mdp.random_select_action()
+        return torch.tensor([[action.get_action_idx()]], device=device, dtype=torch.long)
     else:
         return torch.tensor([[mdp.random_select_action().get_action_idx()]], device=device, dtype=torch.long)
 
@@ -134,7 +140,7 @@ def plot_rewards(episode_rewards, show_result=False):
         # std_dev = torch.cat((torch.zeros(19), std_dev))
         
         xs = np.arange(19, len(rewards_t))
-        plt.fill_between(xs, means+std_dev, means-std_dev, facecolor='blue', alpha=0.25)
+        plt.fill_between(xs, (means+std_dev).numpy(), (means-std_dev).numpy(), facecolor='blue', alpha=0.25)
         plt.plot(xs, means.numpy(), color='blue', linewidth=2)
 
     plt.plot([], [], alpha=0.3, color='blue', label='Per-episode reward')
@@ -150,12 +156,13 @@ def plot_rewards(episode_rewards, show_result=False):
         else:
             display.display(plt.gcf())
             
-def save_results(episode_rewards, model_name='dqn', save_dir='results'):
+def save_results(episode_rewards, model_name='dqn', save_dir='results', random_baseline=False):
     os.makedirs(save_dir, exist_ok=True)
-
+    if random_baseline:
+        model_name = 'random'
     results = {
         'model': model_name,
-        'episode_rewards': episode_rewards,
+        'episode_rewards': [float(r) for r in episode_rewards],
         'mean_reward': float(np.mean(episode_rewards)),
         'std_reward': float(np.std(episode_rewards)),
         'final_20_mean': float(np.mean(episode_rewards[-20:])),
@@ -166,15 +173,17 @@ def save_results(episode_rewards, model_name='dqn', save_dir='results'):
         json.dump(results, f, indent=2)
 
     plot_rewards(episode_rewards, show_result=True)
-    plt.savefig(f'{save_dir}/{model_name}_rewards.png', dpi=150, bbox_inches='tight')
+    fig = plt.figure(1)
+    fig.savefig(f'{save_dir}/{model_name}_rewards.png', dpi=150, bbox_inches='tight')
 
     print(f"\n{model_name} training done")
     print(f"mean reward: {results['mean_reward']:.2f} +/- {results['std_reward']:.2f}")
     print(f"last 20 eps: {results['final_20_mean']:.2f} +/- {results['final_20_std']:.2f}")
     print(f"saved to {save_dir}/")
 
-def train_dqn(memory, policy_net, target_net, optimizer, num_episodes, T):
+def train_dqn(memory, policy_net, target_net, optimizer, num_episodes, T, random_baseline=False):
     steps_done = 0
+    eps_decay = int(num_episodes * T * 0.8)
     episode_durations = []
     episode_rewards = []
     
@@ -186,14 +195,15 @@ def train_dqn(memory, policy_net, target_net, optimizer, num_episodes, T):
         total_reward = 0
         
         for t in range(T):
-            action = select_action(observation, policy_net, mdp, steps_done)
+            action = select_action(observation, policy_net, mdp, steps_done, eps_decay, random_baseline)
             reward = mdp.transition(Action(action_idx=action.item()))
             total_reward += reward
-            reward = torch.tensor(reward, dtype=torch.float32, device=device).unsqueeze(0)
+            scaled_reward = reward / 10000 # try scaling reward to stabilize training ?
+            scaled_reward = torch.tensor(scaled_reward, dtype=torch.float32, device=device).unsqueeze(0)
             next_observation = torch.tensor(mdp.get_observation(), dtype=torch.float32, device=device).unsqueeze(0)
     
             # Store the transition in memory
-            memory.push(observation, action, next_observation, reward)
+            memory.push(observation, action, next_observation, scaled_reward)
             optimize_model(memory, policy_net, target_net, optimizer)
             steps_done += 1
     
@@ -215,5 +225,5 @@ def train_dqn(memory, policy_net, target_net, optimizer, num_episodes, T):
                 break
     
     print('Complete')
-    save_results(episode_rewards, model_name='dqn')
-    return policy_net, target_net, episode_rewards
+    save_results(episode_rewards, model_name='dqn', random_baseline=random_baseline)
+    return policy_net, target_net

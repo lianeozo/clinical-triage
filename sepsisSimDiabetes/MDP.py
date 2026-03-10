@@ -684,12 +684,28 @@ class MDP(object):
             probabilities = self.policy_array(obs)
             probabilities = np.asarray(probabilities, dtype = np.float64)
 
-            #clip
-            probabilities = np.clip(probabilities, 1e-9, 1.0)
-            probabilities = probabilities / probabilities.sum()
+            feasible_actions = []
+            prob_feasible = []
+            for a in range(Action.NUM_ACTIONS_TOTAL):
+                action = Action(action_idx=a)
+                if not self.soc_feasibility(action.soc):
+                    continue
+                if not self.treatment_feasibility(action):
+                    continue
+                feasible_actions.append(a)
+                prob_feasible.append(probabilities[a])
+                
+            if len(feasible_actions) == 0:
+                feasible_actions = [0]   # do nothing incase nothing is feasible
+                prob_feasible_actions = [1.0]
+            else:
+                prob_feasible = np.array(prob_feasible)
+                #clip
+                prob_feasible = np.clip(prob_feasible, 1e-9, 1.0)
+                prob_feasible = prob_feasible / prob_feasible.sum()
 
             #random selection
-            a = np.random.choice(Action.NUM_ACTIONS_TOTAL, p = probabilities)
+            a = np.random.choice(feasible_actions, p = prob_feasible)
             return Action(action_idx=int(a))
 
         #keeping the rest of the tabular behavior non PPO functionality

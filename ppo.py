@@ -224,7 +224,7 @@ def train_ppo(
         )
 
     plot_rewards(episode_rewards, show_result=True)
-    save_results(episode_rewards, model_name='ppo')
+    save_results(episode_rewards, model_name='ppo', random_baseline=False)
     return model, episode_rewards
 
         
