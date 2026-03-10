@@ -25,8 +25,10 @@ def render_trajectory(model, device, model_type='dqn'):
     for t in range(14):
         # get observation and select action based on model type
         obs = torch.tensor(mdp.get_observation(), dtype=torch.float32, device=device).unsqueeze(0)
+
+        #adding random trajectory functionality
         if model_type == 'random':
-            action = mdp.random_select_action()   # <-- random feasible action
+            action = mdp.random_select_action()
         else:
             obs = torch.tensor(mdp.get_observation(), dtype=torch.float32, device=device).unsqueeze(0)
             with torch.no_grad():
