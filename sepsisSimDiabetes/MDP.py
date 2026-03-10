@@ -331,10 +331,16 @@ class MDP(object):
                     cur_bin = getattr(self.state, state_var)
                     setattr(self.state, state_var, max(0, cur_bin - 1))
                 
-        for var, state_var in SOC_STATE_TO_DICT_VARS.items():
-            cur_bin = getattr(self.state, state_var)
+        for tiers in [
+            ['o_doc', 'o_nurse'],
+            ['a_doc', 'a_nurse', 'a_beds'],
+            ['i_doc', 'i_nurse', 'i_beds'],
+        ]:
             change = np.random.choice([-1, 0, 1])
-            setattr(self.state, state_var, int(np.clip(cur_bin + change, 0, 3)))
+            for var in tiers:
+                state_var = SOC_STATE_TO_DICT_VARS[var]
+                cur_bin = getattr(self.state, state_var)
+                setattr(self.state, state_var, int(np.clip(cur_bin + change, 0, 3)))
     
     
     def get_observation(self):
@@ -531,7 +537,7 @@ class MDP(object):
             reward -= 200 * change_in_soc
         
         
-        if change_in_soc < 1 and num_abnormal >= 2:
+        if change_in_soc < 1 and num_abnormal >= 2 and self.state.soc_state < State.NUM_SOC - 1:
             soc_gap = (State.NUM_SOC - 1) - self.state.soc_state
             reward -= 100 * soc_gap
         
