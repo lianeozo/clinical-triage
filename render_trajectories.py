@@ -7,8 +7,6 @@ import torch
 import os
 
 def render_trajectory(model, device, model_type='dqn'):
-
-    # readable labels for each state variable based on simulator definitions
     hr_map = {0: 'low', 1: 'normal', 2: 'high'}
     bp_map = {0: 'low', 1: 'normal', 2: 'high'}
     o2_map = {0: 'low', 1: 'normal'}
@@ -39,7 +37,7 @@ def render_trajectory(model, device, model_type='dqn'):
         state = mdp.state
         soc = state.soc_state
 
-        # show only the capacity relevant to the current site of care
+        # show only the capacity vars relevant to the current site of care
         if soc in [State.ASYNC, State.AMBULATORY]:
             capacity_str = f"Outpatient docs: {cap_map[state.outp_doc_state]}, Outpatient nurses: {cap_map[state.outp_nurse_state]}"
         elif soc in [State.HAH, State.FACILITY]:
