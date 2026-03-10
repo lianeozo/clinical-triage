@@ -526,18 +526,25 @@ class MDP(object):
         
         change_in_soc = self.state.soc_state - self_state.soc_state
         
-        if change_in_soc != 0:
-            self.state.num_switches_state = self_state.num_switches_state + 1
-          
         # Penalize unnecessary escalation  
         if change_in_soc > 0 and num_abnormal == 0:
             reward -= 200 * change_in_soc
-                
-        # Penalize switches the patient's site of care too much
-        if self.current_step >= 3:
-            switch_ratio = self.state.num_switches_state / self.current_step
-            if switch_ratio > 0.25:
-                reward -= 150 * (switch_ratio - 0.25)
+        
+        
+        if change_in_soc < 1 and num_abnormal >= 2:
+            soc_gap = (State.NUM_SOC - 1) - self.state.soc_state
+            reward -= 100 * soc_gap
+        
+        if change_in_soc != 0:
+            self.state.num_switches_state = self_state.num_switches_state + 1
+        
+        if change_in_soc != 0:
+            reward -= 50
+        # # Penalize switches the patient's site of care too much
+        # if self.current_step >= 3:
+        #     switch_ratio = self.state.num_switches_state / self.current_step
+        #     if switch_ratio > 0.25:
+        #         reward -= 150 * (switch_ratio - 0.25)
         
         
         # ----------------------------------------------------
@@ -697,7 +704,7 @@ class MDP(object):
                 
             if len(feasible_actions) == 0:
                 feasible_actions = [0]   # do nothing incase nothing is feasible
-                prob_feasible_actions = [1.0]
+                prob_feasible = [1.0]
             else:
                 prob_feasible = np.array(prob_feasible)
                 #clip

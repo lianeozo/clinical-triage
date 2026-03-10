@@ -76,11 +76,11 @@ def rollout_processing(iter_states, iter_actions, iter_rewards, iter_lengths):
             re.append(float(iter_rewards[i, t, 0]))
             finished.append(1.0 if (t == L-1) else 0.0)
 
-        obs_arr = np.stack(obs)
-        next_obs_arr = np.stack(next_obs)
-        act_arr = np.array(act, dtype=np.int64) 
-        rewards_arr = np.array(re, dtype=np.float32)
-        finished_arr = np.array(finished, dtype=np.float32)
+    obs_arr = np.stack(obs)
+    next_obs_arr = np.stack(next_obs)
+    act_arr = np.array(act, dtype=np.int64) 
+    rewards_arr = np.array(re, dtype=np.float32)
+    finished_arr = np.array(finished, dtype=np.float32)
 
     return obs_arr, next_obs_arr, act_arr, rewards_arr, finished_arr
 
@@ -158,7 +158,7 @@ def train_ppo(
         episode_rewards.append(avg_ep_ret)
         plot_rewards(episode_rewards, show_result=False)
 
-        re_arr = re_arr * 1e-4
+        re_arr = re_arr * reward_scaling
 
         obs = torch.tensor(obs_arr, dtype=torch.float32, device=device)
         next_obs = torch.tensor(next_obs_arr, dtype=torch.float32, device=device)
