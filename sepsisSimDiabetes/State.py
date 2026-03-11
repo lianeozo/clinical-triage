@@ -293,13 +293,13 @@ class State(object):
         returns number of abnormal conditions
         '''
         num_abnormal = 0
-        if self.hr_state != 1:
+        if self.hr_state != 1 and self.hr_state != -1:
             num_abnormal += 1
-        if self.sysbp_state != 1:
+        if self.sysbp_state != 1 and self.sysbp_state != -1:
             num_abnormal += 1
-        if self.percoxyg_state != 1:
+        if self.percoxyg_state != 1 and self.percoxyg_state != -1:
             num_abnormal += 1
-        if self.glucose_state != 2:
+        if self.glucose_state != 2 and self.glucose_state != -1:
             num_abnormal += 1
         return num_abnormal
 
