@@ -539,7 +539,7 @@ class MDP(object):
         
         if change_in_soc < 1 and num_abnormal >= 2 and self.state.soc_state < State.NUM_SOC - 1:
             soc_gap = (State.NUM_SOC - 1) - self.state.soc_state
-            reward -= 100 * soc_gap
+            reward -= 10_000 * soc_gap
         
         if change_in_soc != 0:
             self.state.num_switches_state = self_state.num_switches_state + 1
