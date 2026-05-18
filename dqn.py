@@ -80,7 +80,7 @@ def select_action(state, policy_net, mdp, steps_done, eps_decay, random_baseline
         with torch.no_grad():
             action_idx = policy_net(state).max(1).indices.item()
             action = Action(action_idx=action_idx)
-        if not mdp.treatment_feasibility(action) or not mdp.soc_feasibility(action.soc):
+        if not mdp.treatment_feasibility(action):
                 action = mdp.random_select_action()
         return torch.tensor([[action.get_action_idx()]], device=device, dtype=torch.long)
     else:

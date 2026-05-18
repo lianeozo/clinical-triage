@@ -20,8 +20,6 @@ def feasible_action_indices(mdp: MDP):
     feas = []
     for a_idx in range(Action.NUM_ACTIONS_TOTAL):
         act = Action(action_idx=a_idx)
-        if not mdp.soc_feasibility(act.soc):
-            continue
         if not mdp.treatment_feasibility(act):
             continue
         feas.append(a_idx)
