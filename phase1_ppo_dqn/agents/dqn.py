@@ -83,6 +83,7 @@ class DQNAgent(Agent):
 
         # Soft target update.
         with torch.no_grad():
+            # Pre-update gap: this is the lag that produced today's TD target.
             drift_sq = 0.0
             for p_pol, p_tgt in zip(self.policy_net.parameters(), self.target_net.parameters()):
                 drift_sq += ((p_pol.data - p_tgt.data) ** 2).sum().item()

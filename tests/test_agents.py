@@ -71,11 +71,19 @@ def test_dqn_save_load_roundtrip(tmp_path):
     cfg = DQNAgentConfig()
     a1 = DQNAgent(obs_dim=State.NUM_STATE_VARS, n_actions=Action.NUM_ACTIONS_TOTAL,
                   total_env_steps=1000, config=cfg, seed=0, device="cpu")
+    # Burn some steps so _steps_done is non-zero and worth round-tripping.
+    obs = np.zeros(State.NUM_STATE_VARS, dtype=np.float32)
+    for _ in range(5):
+        a1.act(obs, eval_mode=False)
     path = tmp_path / "dqn.pt"
     a1.save(path)
     a2 = DQNAgent(obs_dim=State.NUM_STATE_VARS, n_actions=Action.NUM_ACTIONS_TOTAL,
                   total_env_steps=1000, config=cfg, seed=99, device="cpu")
     a2.load(path)
-    obs = np.zeros(State.NUM_STATE_VARS, dtype=np.float32)
-    # In eval mode both should produce the same greedy action.
+    # In eval mode both should produce the same greedy action (policy_net restored).
     assert a1.act(obs, eval_mode=True) == a2.act(obs, eval_mode=True)
+    # _steps_done round-tripped.
+    assert a2._steps_done == a1._steps_done
+    # target_net parameters match.
+    for p1, p2 in zip(a1.target_net.parameters(), a2.target_net.parameters()):
+        assert torch.allclose(p1, p2)
