@@ -5,8 +5,9 @@ from sepsisSimDiabetes.Action import Action
 from sepsisSimDiabetes.State import State
 from triage_rl.agents.random import RandomAgent
 from triage_rl.agents.noop import NoOpAgent
-from triage_rl.config import DQNAgentConfig
+from triage_rl.config import DQNAgentConfig, PPOAgentConfig
 from phase1_ppo_dqn.agents.dqn import DQNAgent
+from phase1_ppo_dqn.agents.ppo import PPOAgent
 
 
 def test_random_agent_acts_in_range():
@@ -87,3 +88,42 @@ def test_dqn_save_load_roundtrip(tmp_path):
     # target_net parameters match.
     for p1, p2 in zip(a1.target_net.parameters(), a2.target_net.parameters()):
         assert torch.allclose(p1, p2)
+
+
+def test_ppo_agent_acts_in_range():
+    cfg = PPOAgentConfig()
+    agent = PPOAgent(obs_dim=State.NUM_STATE_VARS, n_actions=Action.NUM_ACTIONS_TOTAL,
+                     config=cfg, seed=0, device="cpu")
+    obs = np.zeros(State.NUM_STATE_VARS, dtype=np.float32)
+    for _ in range(50):
+        a = agent.act(obs, eval_mode=False)
+        assert 0 <= a < Action.NUM_ACTIONS_TOTAL
+        assert isinstance(a, int)
+
+
+def test_ppo_agent_get_logp_value():
+    cfg = PPOAgentConfig()
+    agent = PPOAgent(obs_dim=State.NUM_STATE_VARS, n_actions=Action.NUM_ACTIONS_TOTAL,
+                     config=cfg, seed=0, device="cpu")
+    obs = np.zeros((4, State.NUM_STATE_VARS), dtype=np.float32)
+    actions = np.array([0, 1, 2, 3], dtype=np.int64)
+    logp, value = agent.get_logp_value(obs, actions)
+    assert logp.shape == (4,)
+    assert value.shape == (4,)
+
+
+def test_ppo_agent_update_returns_expected_keys():
+    cfg = PPOAgentConfig()
+    agent = PPOAgent(obs_dim=State.NUM_STATE_VARS, n_actions=Action.NUM_ACTIONS_TOTAL,
+                     config=cfg, seed=0, device="cpu")
+    n = 32
+    batch = {
+        "obs": np.zeros((n, State.NUM_STATE_VARS), dtype=np.float32),
+        "action": np.zeros(n, dtype=np.int64),
+        "old_logprob": np.zeros(n, dtype=np.float32),
+        "advantage": np.zeros(n, dtype=np.float32),
+        "return_": np.zeros(n, dtype=np.float32),
+    }
+    metrics = agent.update(batch)
+    for k in ("pg_loss", "v_loss", "entropy", "approx_kl", "clip_frac"):
+        assert k in metrics
