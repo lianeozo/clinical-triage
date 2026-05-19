@@ -127,3 +127,50 @@ def test_ppo_agent_update_returns_expected_keys():
     metrics = agent.update(batch)
     for k in ("pg_loss", "v_loss", "entropy", "approx_kl", "clip_frac"):
         assert k in metrics
+
+
+def test_ppo_update_moves_params():
+    """A single PPO update with non-zero advantage must change at least one parameter."""
+    cfg = PPOAgentConfig()
+    agent = PPOAgent(obs_dim=State.NUM_STATE_VARS, n_actions=Action.NUM_ACTIONS_TOTAL,
+                     config=cfg, seed=0, device="cpu")
+    rng = np.random.default_rng(0)
+    n = 64
+    batch = {
+        "obs": rng.standard_normal((n, State.NUM_STATE_VARS)).astype(np.float32),
+        "action": rng.integers(0, Action.NUM_ACTIONS_TOTAL, size=n).astype(np.int64),
+        "old_logprob": (-np.log(Action.NUM_ACTIONS_TOTAL) * np.ones(n)).astype(np.float32),
+        "advantage": rng.standard_normal(n).astype(np.float32),
+        "return_": rng.standard_normal(n).astype(np.float32),
+    }
+    before = [p.detach().clone() for p in agent.model.parameters()]
+    agent.update(batch)
+    after = list(agent.model.parameters())
+    moved = any(not torch.allclose(b, a) for b, a in zip(before, after))
+    assert moved, "PPO update should move at least one parameter"
+
+
+def test_ppo_save_load_roundtrip(tmp_path):
+    cfg = PPOAgentConfig()
+    a1 = PPOAgent(obs_dim=State.NUM_STATE_VARS, n_actions=Action.NUM_ACTIONS_TOTAL,
+                  config=cfg, seed=0, device="cpu")
+    # Run one update so weights are non-default.
+    rng = np.random.default_rng(0)
+    n = 32
+    batch = {
+        "obs": rng.standard_normal((n, State.NUM_STATE_VARS)).astype(np.float32),
+        "action": rng.integers(0, Action.NUM_ACTIONS_TOTAL, size=n).astype(np.int64),
+        "old_logprob": (-np.log(Action.NUM_ACTIONS_TOTAL) * np.ones(n)).astype(np.float32),
+        "advantage": rng.standard_normal(n).astype(np.float32),
+        "return_": rng.standard_normal(n).astype(np.float32),
+    }
+    a1.update(batch)
+    path = tmp_path / "ppo.pt"
+    a1.save(path)
+    a2 = PPOAgent(obs_dim=State.NUM_STATE_VARS, n_actions=Action.NUM_ACTIONS_TOTAL,
+                  config=cfg, seed=99, device="cpu")
+    a2.load(path)
+    obs = np.zeros(State.NUM_STATE_VARS, dtype=np.float32)
+    assert a1.act(obs, eval_mode=True) == a2.act(obs, eval_mode=True)
+    for p1, p2 in zip(a1.model.parameters(), a2.model.parameters()):
+        assert torch.allclose(p1, p2)

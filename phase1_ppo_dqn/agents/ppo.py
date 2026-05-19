@@ -81,7 +81,9 @@ class PPOAgent(Agent):
         self.optimizer.step()
 
         with torch.no_grad():
-            approx_kl = (old_logp - logp).mean().item()
+            # Schulman positive estimator: (ratio - 1) - log(ratio)
+            logratio = logp - old_logp
+            approx_kl = ((ratio - 1.0) - logratio).mean().item()
             clip_frac = ((ratio - 1.0).abs() > self.cfg.clip_epsilon).float().mean().item()
         return {
             "pg_loss": float(pg_loss.item()),
