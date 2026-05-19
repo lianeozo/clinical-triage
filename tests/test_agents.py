@@ -1,5 +1,4 @@
 import numpy as np
-import pytest
 
 from sepsisSimDiabetes.Action import Action
 from sepsisSimDiabetes.State import State
