@@ -42,6 +42,11 @@ class State(object):
     ], dtype=int)
 
     NUM_STATE_VARS = len(NUM_PER_STATE)
+
+    # Index of soc_state inside the state vector returned by get_state_vector().
+    # Order: hr, sysbp, percoxyg, glucose, antibiotic, vaso, vent, soc → SOC is at index 7.
+    SOC_IDX = 7
+
     NUM_OBS_STATES = int(np.prod(NUM_PER_STATE))
     NUM_HID_STATES = 2  # Binary value of diabetes
     NUM_PROJ_OBS_STATES = int(NUM_OBS_STATES / NUM_GLUC)  # Marginalizing over glucose
