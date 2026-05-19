@@ -6,17 +6,17 @@ from pathlib import Path
 
 import numpy as np
 
+from triage_rl.agents.base import OnPolicyAgent
 from triage_rl.buffers.rollout import RolloutBuffer
 from triage_rl.config import OnPolicyConfig
 from triage_rl.env import Env
 from triage_rl.evaluator import Evaluator
 from triage_rl.logger import Logger
 from triage_rl.trainers.off_policy import seed_everything, make_eval_pool
-from phase1_ppo_dqn.agents.ppo import PPOAgent
 
 
 class OnPolicyTrainer:
-    def __init__(self, env: Env, agent: PPOAgent, buffer: RolloutBuffer,
+    def __init__(self, env: Env, agent: OnPolicyAgent, buffer: RolloutBuffer,
                  evaluator: Evaluator, logger: Logger, config: OnPolicyConfig,
                  algo_name: str = "ppo") -> None:
         self.env = env
@@ -107,6 +107,11 @@ class OnPolicyTrainer:
         env_steps_done = 0
         next_eval_at = self.cfg.eval_cadence
 
+        # Note: PPO eval steps may overshoot cadence boundaries by up to one rollout's
+        # worth of env-steps. For SMOKE (rollouts ~6K, cadence 10K) and STANDARD
+        # (rollouts ~6K, cadence 25K) this is at most a one-rollout drift. Cross-algo
+        # plots should align by checkpoint *index*, not by exact step. The final eval
+        # (after the while loop exits) is guaranteed at the actual env_steps_done.
         while env_steps_done < self.cfg.total_env_steps:
             roll = self._collect_rollouts(train_rng)
             env_steps_done += sum(roll["ep_lengths"])
@@ -140,3 +145,13 @@ class OnPolicyTrainer:
                 next_eval_at = ((env_steps_done // self.cfg.eval_cadence) + 1) * self.cfg.eval_cadence
 
             self.buffer.clear()
+
+        # Guaranteed final eval at run end (avoids missing eval if the last rollout's
+        # env_steps_done happened to fall in the same cadence bucket as the prior eval).
+        last_eval_step = next_eval_at - self.cfg.eval_cadence  # most recent eval step boundary
+        if env_steps_done > last_eval_step:
+            aggs = self.evaluator.evaluate(self.agent, step=env_steps_done, algo_name=self.algo_name)
+            self.logger.log_checkpoint(env_steps_done, aggs)
+            ckpt_dir = self.cfg.out_dir / "checkpoints"
+            ckpt_dir.mkdir(parents=True, exist_ok=True)
+            self.agent.save(ckpt_dir / f"step_{env_steps_done}_final.pt")

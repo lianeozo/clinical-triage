@@ -40,7 +40,7 @@ class Evaluator:
             ep_return = 0.0
             ep_len = 0
             ep_clamped = 0
-            traj = {"episode_idx": ep_idx, "init_seed": int(init_seed),
+            traj = {"algo": algo_name, "episode_idx": ep_idx, "init_seed": int(init_seed),
                     "states": [], "agent_actions": [], "executed_actions": [],
                     "clamped_steps": [], "rewards_raw": [], "socs": [],
                     "num_abnormal_vitals": []}
