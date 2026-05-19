@@ -33,7 +33,6 @@ class Evaluator:
         for ep_idx, init_seed in enumerate(self.eval_pool):
             obs, info_reset = env.reset(seed=init_seed)
             prev_soc = int(info_reset["soc"])
-            soc_dwell[prev_soc] += 1
             ep_return = 0.0
             ep_len = 0
             ep_clamped = 0
@@ -41,10 +40,10 @@ class Evaluator:
                     "states": [], "agent_actions": [], "executed_actions": [],
                     "clamped_steps": [], "rewards_raw": [], "socs": [],
                     "num_abnormal_vitals": []}
+            num_abn_now = int(info_reset["num_abnormal_vitals"])
             while True:
                 a = agent.act(obs, eval_mode=True)
                 # bucket #5 keying must use pre-step (soc, num_abn).
-                num_abn_now = int(env.mdp.state.get_num_abnormal())
                 key = f"soc_{prev_soc}_abn_{num_abn_now}"
                 if key not in action_hist_sxa:
                     action_hist_sxa[key] = np.zeros(Action.NUM_ACTIONS_TOTAL, dtype=np.int64)
@@ -53,14 +52,15 @@ class Evaluator:
 
                 traj["states"].append(obs.tolist())
                 traj["agent_actions"].append(int(a))
+                soc_dwell[prev_soc] += 1
                 obs, raw_reward, terminated, truncated, info = env.step(a)
                 ep_return += raw_reward
                 ep_len += 1
                 ep_clamped += int(info["clamped"])
                 new_soc = int(info["soc"])
-                soc_dwell[new_soc] += 1
                 soc_trans[prev_soc, new_soc] += 1
                 prev_soc = new_soc
+                num_abn_now = int(info["num_abnormal_vitals"])
 
                 traj["executed_actions"].append(int(info["executed_action"]))
                 traj["clamped_steps"].append(int(info["clamped"]))

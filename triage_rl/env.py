@@ -52,6 +52,7 @@ class Env(gymnasium.Env):
         info = {
             "soc": int(self.mdp.state.soc_state),
             "raw_state": self.mdp.state.get_state_vector().astype(np.float32),
+            "num_abnormal_vitals": int(self.mdp.state.get_num_abnormal()),
         }
         return obs, info
 
