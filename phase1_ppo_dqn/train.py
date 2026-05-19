@@ -45,9 +45,8 @@ def _serialize_config(obj) -> dict:
 
 
 def run_one_seed(algo: str, preset_name: str, seed: int, out_root: Path,
-                 eval_only: bool, tag: str | None, device: str) -> Path:
+                 eval_only: bool, run_name: str, device: str) -> Path:
     preset = PRESETS[preset_name]
-    run_name = _run_name(preset_name, algo, tag)
     out_dir = out_root / run_name / f"seed_{seed}"
     out_dir.mkdir(parents=True, exist_ok=True)
 
@@ -149,9 +148,10 @@ def main() -> None:
 
     seeds = PRESETS[args.preset]["seeds"] if args.all_seeds else [args.seed or 0]
     out_root = Path(args.out_root)
+    run_name = _run_name(args.preset, args.algo, args.tag)
     for s in seeds:
         out_dir = run_one_seed(args.algo, args.preset, s, out_root,
-                               eval_only=args.eval_only, tag=args.tag, device=args.device)
+                               eval_only=args.eval_only, run_name=run_name, device=args.device)
         print(f"[done] seed={s} -> {out_dir}")
 
 

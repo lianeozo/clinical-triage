@@ -58,7 +58,7 @@ def _assert_all_buckets_present(out_dir: Path, algo: str):
 def test_dqn_integration_smoke(tmp_path, tiny_preset):
     t0 = time.time()
     out_dir = run_one_seed("dqn", "smoke", seed=0, out_root=tmp_path,
-                           eval_only=False, tag="itest", device="cpu")
+                           eval_only=False, run_name="itest", device="cpu")
     elapsed = time.time() - t0
     assert elapsed < 120, f"DQN integration smoke took {elapsed:.1f}s; expected <120s"
     _assert_all_buckets_present(out_dir, algo="dqn")
@@ -67,7 +67,7 @@ def test_dqn_integration_smoke(tmp_path, tiny_preset):
 def test_ppo_integration_smoke(tmp_path, tiny_preset):
     t0 = time.time()
     out_dir = run_one_seed("ppo", "smoke", seed=0, out_root=tmp_path,
-                           eval_only=False, tag="itest", device="cpu")
+                           eval_only=False, run_name="itest", device="cpu")
     elapsed = time.time() - t0
     assert elapsed < 120, f"PPO integration smoke took {elapsed:.1f}s; expected <120s"
     _assert_all_buckets_present(out_dir, algo="ppo")
