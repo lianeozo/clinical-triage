@@ -32,6 +32,9 @@ class OnPolicyTrainer:
 
         Returns dict with keys: obs, next_obs, actions, rewards_raw, terminated,
         log_probs, values, next_values, ep_returns, ep_lengths, terminal_reasons.
+
+        Per env-step: 1 forward pass via act_with_logp_value. Per episode:
+        1 additional value-only forward to bootstrap next_value when not terminated.
         """
         obs_list, next_obs_list = [], []
         actions, rewards_raw, term_flags = [], [], []
@@ -40,31 +43,46 @@ class OnPolicyTrainer:
 
         for _ in range(self.cfg.rollout_episodes):
             obs, _ = self.env.reset(seed=int(train_rng.integers(0, 2**31 - 1)))
+            ep_obs, ep_next_obs = [], []
+            ep_actions, ep_rewards, ep_term_flags = [], [], []
+            ep_log_probs, ep_values = [], []
             ep_ret = 0.0
-            ep_len = 0
             term_reason = "timeout"
+            ended_terminated = False
             for _step in range(self.cfg.max_steps_per_episode):
-                # Sample action + record value + log_prob in one go.
-                a = self.agent.act(obs, eval_mode=False)
-                logp_arr, val_arr = self.agent.get_logp_value(
-                    obs[np.newaxis, :], np.array([a], dtype=np.int64))
+                a, logp, val = self.agent.act_with_logp_value(obs)
                 next_obs, raw_reward, terminated, truncated, info = self.env.step(a)
-                _, nval_arr = self.agent.get_logp_value(
-                    next_obs[np.newaxis, :], np.array([0], dtype=np.int64))
-                obs_list.append(obs)
-                next_obs_list.append(next_obs)
-                actions.append(int(a))
-                rewards_raw.append(float(raw_reward))
-                term_flags.append(bool(terminated))
-                log_probs.append(float(logp_arr[0]))
-                values_list.append(float(val_arr[0]))
-                next_values_list.append(float(nval_arr[0]) if not terminated else 0.0)
+                ep_obs.append(obs)
+                ep_next_obs.append(next_obs)
+                ep_actions.append(int(a))
+                ep_rewards.append(float(raw_reward))
+                ep_term_flags.append(bool(terminated))
+                ep_log_probs.append(float(logp))
+                ep_values.append(float(val))
                 ep_ret += raw_reward
-                ep_len += 1
                 obs = next_obs
                 if terminated or truncated:
                     term_reason = info["terminal_reason"]
+                    ended_terminated = bool(terminated)
                     break
+
+            ep_len = len(ep_obs)
+            # next_values[t] = values[t+1] for t<L-1, and at t=L-1 it's 0 if terminated
+            # else V(final next_obs) via one value-only forward.
+            if ep_len > 0:
+                tail = 0.0 if ended_terminated else self.agent.value_only(ep_next_obs[-1])
+                ep_next_values = ep_values[1:] + [float(tail)]
+            else:
+                ep_next_values = []
+
+            obs_list.extend(ep_obs)
+            next_obs_list.extend(ep_next_obs)
+            actions.extend(ep_actions)
+            rewards_raw.extend(ep_rewards)
+            term_flags.extend(ep_term_flags)
+            log_probs.extend(ep_log_probs)
+            values_list.extend(ep_values)
+            next_values_list.extend(ep_next_values)
             ep_returns.append(ep_ret)
             ep_lengths.append(ep_len)
             ep_terms.append(term_reason)

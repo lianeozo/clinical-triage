@@ -58,6 +58,23 @@ class PPOAgent(Agent):
             logp = Categorical(logits=logits).log_prob(a)
             return logp.cpu().numpy(), value.cpu().numpy()
 
+    def act_with_logp_value(self, obs: np.ndarray) -> tuple[int, float, float]:
+        """Sample an action and return (action, logp, value) from a single forward pass."""
+        with torch.no_grad():
+            x = torch.from_numpy(obs.astype(np.float32)).unsqueeze(0).to(self.device)
+            logits, value = self.model(x)
+            dist = Categorical(logits=logits)
+            a = dist.sample()
+            logp = dist.log_prob(a)
+            return int(a.item()), float(logp.item()), float(value.item())
+
+    def value_only(self, obs: np.ndarray) -> float:
+        """Return V(obs) from a single forward pass (used for bootstrap at episode end)."""
+        with torch.no_grad():
+            x = torch.from_numpy(obs.astype(np.float32)).unsqueeze(0).to(self.device)
+            _, value = self.model(x)
+            return float(value.item())
+
     def update(self, batch: dict[str, np.ndarray]) -> dict[str, float]:
         obs = torch.from_numpy(batch["obs"]).to(self.device)
         action = torch.from_numpy(batch["action"]).long().to(self.device)
