@@ -19,9 +19,6 @@ from sepsisSimDiabetes.MDP import MDP, SOC_TREATMENT_FEASIBILITY
 from sepsisSimDiabetes.State import State
 
 
-_COMPONENT_NAMES = ("antibiotic", "ventilation", "vasopressors")
-
-
 class Env(gymnasium.Env):
     metadata = {"render_modes": []}
 
@@ -60,9 +57,6 @@ class Env(gymnasium.Env):
 
     def step(self, action_idx: int) -> tuple[np.ndarray, float, bool, bool, dict]:
         assert self.mdp is not None, "must call reset() before step()"
-        # Re-seed the global numpy RNG from the env's seeded generator so the
-        # MDP's np.random.* calls are deterministic under Gymnasium's contract.
-        np.random.seed(int(self.np_random.integers(0, 2**31 - 1)))
         agent_action = Action(action_idx=int(action_idx))
         executed_action, clamped_components = self._clamp(agent_action)
         clamped = bool(clamped_components)
@@ -116,5 +110,8 @@ class Env(gymnasium.Env):
         if vaso not in rules["vasopressors"]:
             vaso = 0
             clamped.append("vasopressors")
-        idx = antib * 16 + vent * 8 + vaso * 4 + int(agent_action.soc)
-        return Action(action_idx=idx), clamped
+        executed = Action(action_idx=int(agent_action.get_action_idx()))
+        executed.antibiotic = antib
+        executed.ventilation = vent
+        executed.vasopressors = vaso
+        return executed, clamped

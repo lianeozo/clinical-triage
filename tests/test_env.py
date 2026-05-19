@@ -62,3 +62,19 @@ def test_gymnasium_env_checker():
     env = Env()
     # check_env raises on contract violations. skip_render_check because we don't render.
     check_env(env.unwrapped, skip_render_check=True)
+
+
+def test_truncation_on_max_steps():
+    """Reaching max_steps without absorbing → truncated=True, terminal_reason='timeout'."""
+    env = Env(max_steps=2)
+    env.reset(seed=12345)
+    # Force a SOC that won't absorb quickly: ICU with non-treatment action 12 (soc=ICU)
+    # Just step max_steps times with action 0 and look at the final step's flags.
+    for _ in range(env.max_steps - 1):
+        _, _, terminated, truncated, _ = env.step(0)
+        if terminated or truncated:
+            pytest.skip("absorbing state hit before max_steps; rerun with different seed")
+    _, _, terminated, truncated, info = env.step(0)
+    assert terminated is False, "should not terminate on max_steps cap"
+    assert truncated is True
+    assert info["terminal_reason"] == "timeout"
