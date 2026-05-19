@@ -4,7 +4,6 @@ from __future__ import annotations
 import json
 import random
 from pathlib import Path
-from typing import Callable
 
 import numpy as np
 import torch
@@ -47,7 +46,7 @@ class OffPolicyTrainer:
         eval_pool = make_eval_pool(self.cfg.seed, n=self.cfg.n_eval_episodes)
         (self.cfg.out_dir / "eval_pool.json").write_text(json.dumps(eval_pool))
         # Patch the evaluator's pool (it was constructed with a placeholder before training).
-        self.evaluator.eval_pool = eval_pool
+        self.evaluator.set_eval_pool(eval_pool)
         self.evaluator.evaluate_references_once()
 
         train_rng = np.random.default_rng(self.cfg.seed)

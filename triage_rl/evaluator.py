@@ -21,6 +21,10 @@ class Evaluator:
         self.logger = logger
         self.reference_agents = reference_agents or {}
 
+    def set_eval_pool(self, eval_pool: list[int]) -> None:
+        """Replace the eval pool. Trainer calls this once after generating the pool from its seed."""
+        self.eval_pool = list(eval_pool)
+
     def evaluate(self, agent: Agent, step: int, algo_name: str = "agent") -> dict:
         env = self.env_factory()
         rewards, lengths, terminals, clamp_counts = [], [], [], []
