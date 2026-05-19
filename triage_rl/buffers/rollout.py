@@ -55,7 +55,8 @@ class RolloutBuffer:
         self.return_ = ret.astype(np.float32)
 
     def minibatches(self, batch_size: int) -> Iterator[dict[str, np.ndarray]]:
-        assert self.obs is not None, "must call fill() before minibatches()"
+        if self.obs is None:
+            raise RuntimeError("must call fill() before minibatches()")
         n = self.obs.shape[0]
         perm = self._rng.permutation(n)
         for start in range(0, n, batch_size):

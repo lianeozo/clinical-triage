@@ -71,3 +71,24 @@ def test_rollout_buffer_fill_and_minibatches():
     for mb in mbs:
         for k in ("obs", "action", "old_logprob", "advantage", "return_"):
             assert k in mb
+
+
+def test_rollout_buffer_advantage_normalized_after_fill():
+    """fill() should leave advantages with mean ≈ 0, std ≈ 1."""
+    T = 64
+    rng = np.random.default_rng(0)
+    obs = [rng.standard_normal(4).astype(np.float32) for _ in range(T)]
+    actions = list(rng.integers(0, 32, size=T))
+    rewards_raw = list(rng.standard_normal(T) * 100)
+    terminated = [False] * (T - 1) + [True]
+    log_probs = [-0.5] * T
+    values = list(rng.standard_normal(T).astype(np.float32))
+    next_values = values[1:] + [0.0]
+
+    buf = RolloutBuffer()
+    buf.fill(obs=obs, actions=actions, rewards_raw=rewards_raw,
+             terminated=terminated, log_probs=log_probs, values=values,
+             next_values=next_values, gamma=0.99, lam=0.95, reward_scale=1e-4)
+
+    assert abs(float(buf.advantage.mean())) < 1e-5
+    assert abs(float(buf.advantage.std()) - 1.0) < 1e-3
