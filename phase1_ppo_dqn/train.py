@@ -7,6 +7,8 @@ import datetime as dt
 import json
 from pathlib import Path
 
+import torch
+
 from sepsisSimDiabetes.Action import Action
 from sepsisSimDiabetes.State import State
 from triage_rl.agents.noop import NoOpAgent
@@ -29,6 +31,16 @@ def _run_name(preset: str, algo: str, tag: str | None) -> str:
     now = dt.datetime.now().strftime("%Y-%m-%dT%H-%M")
     base = f"{now}-{preset}-{algo}"
     return f"{base}-{tag}" if tag else base
+
+
+def _resolve_device(requested: str) -> str:
+    if requested != "auto":
+        return requested
+    if torch.cuda.is_available():
+        return "cuda"
+    if hasattr(torch.backends, "mps") and torch.backends.mps.is_available():
+        return "mps"
+    return "cpu"
 
 
 def _serialize_config(obj) -> dict:
@@ -140,7 +152,8 @@ def main() -> None:
     p.add_argument("--tag", default=None, help="optional suffix on run name")
     p.add_argument("--out-root", default="results/phase1_ppo_dqn",
                    help="output root (gitignored)")
-    p.add_argument("--device", default="cpu", help="torch device: cpu, cuda, mps")
+    p.add_argument("--device", default="auto",
+                   help="torch device: auto (default — picks cuda > mps > cpu), cpu, cuda, mps")
     args = p.parse_args()
 
     if args.all_seeds and args.seed is not None:
@@ -149,9 +162,11 @@ def main() -> None:
     seeds = PRESETS[args.preset]["seeds"] if args.all_seeds else [args.seed or 0]
     out_root = Path(args.out_root)
     run_name = _run_name(args.preset, args.algo, args.tag)
+    device = _resolve_device(args.device)
+    print(f"[device] using {device}")
     for s in seeds:
         out_dir = run_one_seed(args.algo, args.preset, s, out_root,
-                               eval_only=args.eval_only, run_name=run_name, device=args.device)
+                               eval_only=args.eval_only, run_name=run_name, device=device)
         print(f"[done] seed={s} -> {out_dir}")
 
 
