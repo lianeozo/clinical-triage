@@ -7,9 +7,6 @@ import datetime as dt
 import json
 from pathlib import Path
 
-import numpy as np
-import torch
-
 from sepsisSimDiabetes.Action import Action
 from sepsisSimDiabetes.State import State
 from triage_rl.agents.noop import NoOpAgent
@@ -21,7 +18,7 @@ from triage_rl.config import (DQNAgentConfig, EnvConfig, OffPolicyConfig,
 from triage_rl.env import Env
 from triage_rl.evaluator import Evaluator
 from triage_rl.logger import Logger
-from triage_rl.trainers.off_policy import OffPolicyTrainer, make_eval_pool, seed_everything
+from triage_rl.trainers.off_policy import OffPolicyTrainer, make_eval_pool
 from triage_rl.trainers.on_policy import OnPolicyTrainer
 from phase1_ppo_dqn.agents.dqn import DQNAgent
 from phase1_ppo_dqn.agents.ppo import PPOAgent
@@ -67,7 +64,7 @@ def run_one_seed(algo: str, preset_name: str, seed: int, out_root: Path,
         agent = refs[algo]
         pool = make_eval_pool(seed=seed, n=preset["n_eval_episodes"])
         (out_dir / "eval_pool.json").write_text(json.dumps(pool))
-        evaluator = Evaluator(eval_pool=pool, env_factory=lambda: Env(),
+        evaluator = Evaluator(eval_pool=pool, env_factory=lambda: Env(p_diabetes=env_cfg.p_diabetes, max_steps=env_cfg.max_steps),
                               logger=logger, reference_agents={})
         aggs = evaluator.evaluate(agent, step=0, algo_name=algo)
         logger.log_checkpoint(0, aggs)
@@ -91,7 +88,7 @@ def run_one_seed(algo: str, preset_name: str, seed: int, out_root: Path,
             eval_cadence=preset["eval_cadence"],
             n_eval_episodes=preset["n_eval_episodes"],
         )
-        evaluator = Evaluator(eval_pool=[], env_factory=lambda: Env(),
+        evaluator = Evaluator(eval_pool=[], env_factory=lambda: Env(p_diabetes=env_cfg.p_diabetes, max_steps=env_cfg.max_steps),
                               logger=logger, reference_agents=refs)
         trainer = OffPolicyTrainer(env, agent, buf, evaluator, logger, trainer_cfg, algo_name="dqn")
         (out_dir / "config.json").write_text(json.dumps({
@@ -114,7 +111,7 @@ def run_one_seed(algo: str, preset_name: str, seed: int, out_root: Path,
             eval_cadence=preset["eval_cadence"],
             n_eval_episodes=preset["n_eval_episodes"],
         )
-        evaluator = Evaluator(eval_pool=[], env_factory=lambda: Env(),
+        evaluator = Evaluator(eval_pool=[], env_factory=lambda: Env(p_diabetes=env_cfg.p_diabetes, max_steps=env_cfg.max_steps),
                               logger=logger, reference_agents=refs)
         trainer = OnPolicyTrainer(env, agent, buf, evaluator, logger, trainer_cfg, algo_name="ppo")
         (out_dir / "config.json").write_text(json.dumps({
