@@ -403,11 +403,11 @@ class MDP(object):
         # ----------------------------------------------------
 
         if action.antibiotic == 1:
-            reward -= 10
-        if action.ventilation == 1:
             reward -= 60
+        if action.ventilation == 1:
+            reward -= 120
         if action.vasopressors == 1:
-            reward -= 40
+            reward -= 80
 
         return reward
 
