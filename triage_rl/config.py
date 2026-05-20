@@ -60,3 +60,27 @@ class PPOAgentConfig:
     value_coef: float = 0.5
     entropy_coef: float = 0.01
     max_grad_norm: float = 1.0
+
+
+@dataclass
+class QACAgentConfig:
+    hidden_dim: int = 256
+    n_layers: int = 2                        # SAC trunk depth
+    actor_lr: float = 3e-4
+    critic_lr: float = 3e-4
+    alpha_lr: float = 3e-4
+    gamma: float = 0.99
+    tau: float = 0.005
+    initial_alpha: float = 0.2
+    target_entropy_fraction: float = 0.98   # target = -fraction * log(n_actions)
+    max_grad_norm: float = 1.0
+
+
+@dataclass
+class QACFKAgentConfig(QACAgentConfig):
+    feasibility_beta: float = 0.5            # weight on infeasible-mass regularizer
+
+
+@dataclass
+class QACKPAgentConfig(QACAgentConfig):
+    kl_beta: float = 0.5                     # weight on KL(π_QAC || π_PPO_ref)
