@@ -36,3 +36,16 @@ def test_plot_learning_curves_produces_four_pngs(tmp_path, aggregated_from_local
         path = fig_dir / name
         assert path.exists(), f"missing {name}"
         assert path.stat().st_size > 0, f"empty {name}"
+
+
+def test_plot_action_distrib_produces_two_pngs(tmp_path, aggregated_from_local_smoke):
+    fig_dir = tmp_path / "figures"
+    subprocess.run([
+        sys.executable, "-m", "analysis.plot_action_distrib",
+        "--aggregated", str(aggregated_from_local_smoke / "action_distributions.parquet"),
+        "--out-dir", str(fig_dir),
+    ], check=True)
+    for name in ("action_distrib_dqn.png", "action_distrib_ppo.png"):
+        path = fig_dir / name
+        assert path.exists(), f"missing {name}"
+        assert path.stat().st_size > 0, f"empty {name}"
