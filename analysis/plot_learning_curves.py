@@ -30,13 +30,21 @@ _ALGO_COLORS = {
 }
 
 
-def _algo_curve(df: pd.DataFrame, algo: str, metric: str) -> pd.DataFrame:
-    """For DQN/PPO: at each step, mean and std across seeds."""
+def _algo_curve(df: pd.DataFrame, algo: str, metric: str, cadence: int) -> pd.DataFrame:
+    """For DQN/PPO: at each cadence-aligned step bucket, mean and std across seeds.
+
+    Steps are snapped to the nearest multiple of `cadence` before grouping. This
+    handles PPO's rollout-overshoot where each seed lands evals at slightly
+    different env-step counts (e.g. 25031, 25150, ...) instead of the cadence
+    boundary (25000).
+    """
     sub = df[df["algo"] == algo]
     if sub.empty:
         return pd.DataFrame(columns=["step", "mean", "std", "n"])
-    grouped = sub.groupby("step")[metric].agg(["mean", "std", "count"]).reset_index()
-    grouped = grouped.rename(columns={"count": "n"})
+    snapped = sub.copy()
+    snapped["step_bin"] = ((snapped["step"] + cadence // 2) // cadence) * cadence
+    grouped = snapped.groupby("step_bin")[metric].agg(["mean", "std", "count"]).reset_index()
+    grouped = grouped.rename(columns={"count": "n", "step_bin": "step"})
     grouped["std"] = grouped["std"].fillna(0.0)
     return grouped
 
@@ -51,11 +59,11 @@ def _ref_band(df: pd.DataFrame, algo: str, metric: str) -> tuple[float, float] |
     return float(deduped[metric].mean()), float(deduped[metric].std(ddof=0) or 0.0)
 
 
-def _plot_one_metric(df: pd.DataFrame, metric: str, out_path: Path, ylabel: str) -> None:
+def _plot_one_metric(df: pd.DataFrame, metric: str, out_path: Path, ylabel: str, cadence: int) -> None:
     fig, ax = plt.subplots(figsize=(8, 5))
 
     # Determine x range from algo data.
-    algo_dfs = {a: _algo_curve(df, a, metric) for a in ("dqn", "ppo")}
+    algo_dfs = {a: _algo_curve(df, a, metric, cadence) for a in ("dqn", "ppo")}
     x_max = 0
     for a, curve in algo_dfs.items():
         if curve.empty:
@@ -100,6 +108,8 @@ def main() -> None:
     p.add_argument("--aggregated", type=Path, required=True,
                    help="path to learning_curves.parquet")
     p.add_argument("--out-dir", type=Path, default=Path("results/phase1_ppo_dqn/figures"))
+    p.add_argument("--eval-cadence", type=int, default=25_000,
+                   help="snap step values to nearest multiple of this for cross-seed grouping (default 25000 = STANDARD)")
     args = p.parse_args()
 
     df = pd.read_parquet(args.aggregated)
@@ -108,7 +118,7 @@ def main() -> None:
 
     for metric, filename, ylabel in _METRICS:
         out_path = args.out_dir / filename
-        _plot_one_metric(df, metric, out_path, ylabel)
+        _plot_one_metric(df, metric, out_path, ylabel, args.eval_cadence)
         print(f"wrote {out_path}")
 
 
