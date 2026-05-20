@@ -1,12 +1,12 @@
-"""Unit tests for QACFKAgent and the feasibility mask."""
+"""Unit tests for SACKLFAgent and the feasibility mask."""
 import numpy as np
 import torch
 
 from sepsisSimDiabetes.Action import Action
 from sepsisSimDiabetes.State import State
-from phase2_qac.feasibility import FEASIBILITY_MASK
-from triage_rl.config import QACFKAgentConfig
-from phase2_qac.agents.qac_fk import QACFKAgent
+from phase2_sac.feasibility import FEASIBILITY_MASK
+from triage_rl.config import SACKLFAgentConfig
+from phase2_sac.agents.sac_kl_f import SACKLFAgent
 
 
 def test_feasibility_mask_count():
@@ -29,8 +29,8 @@ def test_feasibility_mask_specific_actions():
 
 
 def _make_agent(seed=0, beta=10.0):
-    cfg = QACFKAgentConfig(feasibility_beta=beta)
-    return QACFKAgent(obs_dim=State.NUM_STATE_VARS, n_actions=Action.NUM_ACTIONS_TOTAL,
+    cfg = SACKLFAgentConfig(feasibility_beta=beta)
+    return SACKLFAgent(obs_dim=State.NUM_STATE_VARS, n_actions=Action.NUM_ACTIONS_TOTAL,
                       config=cfg, seed=seed, device="cpu")
 
 
@@ -44,7 +44,7 @@ def _random_batch(rng, n=64):
     }
 
 
-def test_qac_fk_returns_infeasible_mass_metric():
+def test_sac_kl_f_returns_infeasible_mass_metric():
     agent = _make_agent()
     rng = np.random.default_rng(0)
     metrics = agent.update(_random_batch(rng))
@@ -52,7 +52,7 @@ def test_qac_fk_returns_infeasible_mass_metric():
     assert 0.0 <= metrics["infeasible_mass"] <= 1.0
 
 
-def test_qac_fk_regularizer_drives_infeasible_mass_down():
+def test_sac_kl_f_regularizer_drives_infeasible_mass_down():
     """With high β, the regularizer should push infeasible_mass down over training steps."""
     agent = _make_agent(beta=10.0)
     rng = np.random.default_rng(0)

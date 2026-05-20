@@ -32,7 +32,7 @@ class Agent(ABC):
 class OnPolicyAgent(Protocol):
     """Duck-typed interface OnPolicyTrainer requires of its agent.
 
-    Concrete agents like PPOAgent and (future) on-policy QAC variants satisfy this
+    Concrete agents like PPOAgent and (future) on-policy SAC variants satisfy this
     by providing these methods plus a `cfg` attribute exposing `gamma` and `gae_lambda`.
     """
 

@@ -1,4 +1,4 @@
-"""Off-policy training loop (DQN, future QAC/IQL)."""
+"""Off-policy training loop (DQN, SAC, future IQL)."""
 from __future__ import annotations
 
 import json

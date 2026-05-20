@@ -63,7 +63,7 @@ class PPOAgentConfig:
 
 
 @dataclass
-class QACAgentConfig:
+class SACAgentConfig:
     hidden_dim: int = 256
     n_layers: int = 2                        # SAC trunk depth
     actor_lr: float = 3e-4
@@ -77,10 +77,10 @@ class QACAgentConfig:
 
 
 @dataclass
-class QACFKAgentConfig(QACAgentConfig):
+class SACKLFAgentConfig(SACAgentConfig):
     feasibility_beta: float = 0.5            # weight on infeasible-mass regularizer
 
 
 @dataclass
-class QACKPAgentConfig(QACAgentConfig):
-    kl_beta: float = 0.5                     # weight on KL(π_QAC || π_PPO_ref)
+class SACKLPPOAgentConfig(SACAgentConfig):
+    kl_beta: float = 0.5                     # weight on KL(π_SAC || π_PPO_ref)

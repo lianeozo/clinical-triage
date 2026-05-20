@@ -1,4 +1,4 @@
-"""Unit tests for QACKPAgent and the PPO-reference loader."""
+"""Unit tests for SACKLPPOAgent and the PPO-reference loader."""
 from pathlib import Path
 
 import numpy as np
@@ -8,10 +8,10 @@ import torch.nn as nn
 
 from sepsisSimDiabetes.Action import Action
 from sepsisSimDiabetes.State import State
-from triage_rl.config import PPOAgentConfig, QACKPAgentConfig
+from triage_rl.config import PPOAgentConfig, SACKLPPOAgentConfig
 from phase1_ppo_dqn.agents.ppo import _ActorCritic
-from phase2_qac.ppo_reference import find_final_checkpoint, load_ppo_actor
-from phase2_qac.agents.qac_kp import QACKPAgent
+from phase2_sac.ppo_reference import find_final_checkpoint, load_ppo_actor
+from phase2_sac.agents.sac_kl_ppo import SACKLPPOAgent
 
 
 @pytest.fixture
@@ -51,9 +51,9 @@ def _random_batch(rng, n=32):
     }
 
 
-def test_qac_kp_kl_term_present_and_finite(fake_ppo_run_dir):
-    cfg = QACKPAgentConfig(kl_beta=0.5)
-    agent = QACKPAgent(obs_dim=State.NUM_STATE_VARS,
+def test_sac_kl_ppo_kl_term_present_and_finite(fake_ppo_run_dir):
+    cfg = SACKLPPOAgentConfig(kl_beta=0.5)
+    agent = SACKLPPOAgent(obs_dim=State.NUM_STATE_VARS,
                        n_actions=Action.NUM_ACTIONS_TOTAL,
                        config=cfg, seed=0, device="cpu",
                        ppo_run_dir=fake_ppo_run_dir)
@@ -63,9 +63,9 @@ def test_qac_kp_kl_term_present_and_finite(fake_ppo_run_dir):
     assert np.isfinite(metrics["kl_to_ppo"])
 
 
-def test_qac_kp_inherits_qac_metric_keys(fake_ppo_run_dir):
-    cfg = QACKPAgentConfig()
-    agent = QACKPAgent(obs_dim=State.NUM_STATE_VARS,
+def test_sac_kl_ppo_inherits_sac_metric_keys(fake_ppo_run_dir):
+    cfg = SACKLPPOAgentConfig()
+    agent = SACKLPPOAgent(obs_dim=State.NUM_STATE_VARS,
                        n_actions=Action.NUM_ACTIONS_TOTAL,
                        config=cfg, seed=0, device="cpu",
                        ppo_run_dir=fake_ppo_run_dir)
@@ -76,10 +76,10 @@ def test_qac_kp_inherits_qac_metric_keys(fake_ppo_run_dir):
         assert k in metrics, f"missing {k}"
 
 
-def test_qac_kp_requires_ppo_run_dir():
-    cfg = QACKPAgentConfig()
+def test_sac_kl_ppo_requires_ppo_run_dir():
+    cfg = SACKLPPOAgentConfig()
     with pytest.raises(ValueError, match="ppo_run_dir"):
-        QACKPAgent(obs_dim=State.NUM_STATE_VARS,
+        SACKLPPOAgent(obs_dim=State.NUM_STATE_VARS,
                    n_actions=Action.NUM_ACTIONS_TOTAL,
                    config=cfg, seed=0, device="cpu",
                    ppo_run_dir=None)

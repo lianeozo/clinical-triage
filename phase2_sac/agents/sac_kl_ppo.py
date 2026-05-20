@@ -1,4 +1,4 @@
-"""QACKPAgent: QACAgent + KL(π_QAC || π_PPO_ref) penalty in actor loss.
+"""SACKLPPOAgent: SACAgent + KL(π_SAC || π_PPO_ref) penalty in actor loss.
 
 Loads a Phase-1 PPO actor as a frozen reference at construction time
 (seed-paired). The reference is identified by --ppo-run-dir at the CLI level
@@ -12,17 +12,17 @@ from pathlib import Path
 import torch
 import torch.nn.functional as F
 
-from phase2_qac.agents.qac import QACAgent
-from phase2_qac.ppo_reference import load_ppo_actor
-from triage_rl.config import PPOAgentConfig, QACKPAgentConfig
+from phase2_sac.agents.sac import SACAgent
+from phase2_sac.ppo_reference import load_ppo_actor
+from triage_rl.config import PPOAgentConfig, SACKLPPOAgentConfig
 
 
-class QACKPAgent(QACAgent):
-    def __init__(self, obs_dim: int, n_actions: int, config: QACKPAgentConfig,
+class SACKLPPOAgent(SACAgent):
+    def __init__(self, obs_dim: int, n_actions: int, config: SACKLPPOAgentConfig,
                  seed: int = 0, device: str = "cpu",
                  ppo_run_dir: Path | None = None) -> None:
         if ppo_run_dir is None:
-            raise ValueError("QACKPAgent requires ppo_run_dir at construction time")
+            raise ValueError("SACKLPPOAgent requires ppo_run_dir at construction time")
         super().__init__(obs_dim, n_actions, config, seed, device)
         self._ppo_ref = load_ppo_actor(
             ppo_run_dir=Path(ppo_run_dir), seed=seed,

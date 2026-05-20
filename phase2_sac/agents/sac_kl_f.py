@@ -1,4 +1,4 @@
-"""QACFKAgent: QACAgent + infeasible-mass penalty in actor loss.
+"""SACKLFAgent: SACAgent + infeasible-mass penalty in actor loss.
 
 The actor loss adds `β * E_π[1 - feasibility_mask]` — a linear penalty on
 policy mass placed on infeasible actions. Returns an extra `infeasible_mass`
@@ -9,13 +9,13 @@ from __future__ import annotations
 import numpy as np
 import torch
 
-from phase2_qac.agents.qac import QACAgent
-from phase2_qac.feasibility import FEASIBILITY_MASK
-from triage_rl.config import QACFKAgentConfig
+from phase2_sac.agents.sac import SACAgent
+from phase2_sac.feasibility import FEASIBILITY_MASK
+from triage_rl.config import SACKLFAgentConfig
 
 
-class QACFKAgent(QACAgent):
-    def __init__(self, obs_dim: int, n_actions: int, config: QACFKAgentConfig,
+class SACKLFAgent(SACAgent):
+    def __init__(self, obs_dim: int, n_actions: int, config: SACKLFAgentConfig,
                  seed: int = 0, device: str = "cpu") -> None:
         super().__init__(obs_dim, n_actions, config, seed, device)
         self._feasibility = torch.from_numpy(

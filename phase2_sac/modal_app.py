@@ -1,11 +1,11 @@
-"""Modal wrapper for Phase 2 QAC variants.
+"""Modal wrapper for Phase 2 SAC variants.
 
 Reuses the same image and `phase1-results` volume as Phase 1.
 concurrency_limit=10 respects the operator's 10-GPU account cap.
 
 Operator commands:
-    modal run phase2_qac/modal_app.py --preset smoke --ppo-run-path /results/<phase1-ppo-run-name>
-    modal run phase2_qac/modal_app.py --preset standard --ppo-run-path /results/2026-05-20T01-26-standard-ppo
+    modal run phase2_sac/modal_app.py --preset smoke --ppo-run-path /results/<phase1-ppo-run-name>
+    modal run phase2_sac/modal_app.py --preset standard --ppo-run-path /results/2026-05-20T01-26-standard-ppo
 
 After completion:
     modal volume get phase1-results / results/phase1_ppo_dqn/_modal_pull/
@@ -36,12 +36,12 @@ def run_one(algo: str, seed: int, preset: str = "standard",
     subprocess.run(["git", "fetch", "origin"], cwd="/app", check=True)
     subprocess.run(["git", "checkout", "--detach", f"origin/{branch}"],
                    cwd="/app", check=True)
-    args = ["python", "-m", "phase2_qac.train",
+    args = ["python", "-m", "phase2_sac.train",
             "--algo", algo, "--seed", str(seed),
             "--preset", preset, "--out-root", "/results"]
-    if algo == "qac_kp":
+    if algo == "sac_kl_ppo":
         if not ppo_run_path:
-            raise ValueError("qac_kp requires --ppo-run-path")
+            raise ValueError("sac_kl_ppo requires --ppo-run-path")
         args += ["--ppo-run-dir", ppo_run_path]
     subprocess.run(args, cwd="/app", check=True)
     volume.commit()
@@ -50,11 +50,11 @@ def run_one(algo: str, seed: int, preset: str = "standard",
 
 @app.local_entrypoint()
 def main(preset: str = "standard",
-         algos: str = "qac,qac_fk,qac_kp",
+         algos: str = "sac,sac_kl_f,sac_kl_ppo",
          branch: str = "saimai",
          ppo_run_path: str = "/results/2026-05-20T01-26-standard-ppo") -> None:
     """Fan out (#algos x #seeds) containers; Modal serializes the excess past concurrency_limit=10."""
-    from phase2_qac.presets import PRESETS
+    from phase2_sac.presets import PRESETS
     algo_list = [a.strip() for a in algos.split(",") if a.strip()]
     if not algo_list:
         raise SystemExit("no algos specified")

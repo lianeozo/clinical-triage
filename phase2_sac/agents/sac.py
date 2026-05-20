@@ -1,4 +1,4 @@
-"""QACAgent: SAC-Discrete with twin-Q critics, auto-tuned entropy temperature.
+"""SACAgent: SAC-Discrete with twin-Q critics, auto-tuned entropy temperature.
 
 Inherits from triage_rl.agents.base.Agent. Uses the existing ReplayBuffer
 (obs, action, scaled_reward, next_obs, terminated). Closed-form expectations
@@ -17,7 +17,7 @@ import torch.optim as optim
 from torch.distributions import Categorical
 
 from triage_rl.agents.base import Agent
-from triage_rl.config import QACAgentConfig
+from triage_rl.config import SACAgentConfig
 
 
 def _make_mlp(in_dim: int, hidden_dim: int, out_dim: int, n_layers: int) -> nn.Sequential:
@@ -30,8 +30,8 @@ def _make_mlp(in_dim: int, hidden_dim: int, out_dim: int, n_layers: int) -> nn.S
     return nn.Sequential(*layers)
 
 
-class QACAgent(Agent):
-    def __init__(self, obs_dim: int, n_actions: int, config: QACAgentConfig,
+class SACAgent(Agent):
+    def __init__(self, obs_dim: int, n_actions: int, config: SACAgentConfig,
                  seed: int = 0, device: str = "cpu") -> None:
         super().__init__()
         torch.manual_seed(seed)

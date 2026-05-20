@@ -25,9 +25,9 @@ _METRICS = [
 _ALGO_COLORS = {
     "dqn":    "#1f77b4",  # blue
     "ppo":    "#d62728",  # red
-    "qac":    "#2ca02c",  # green
-    "qac_fk": "#ff7f0e",  # orange
-    "qac_kp": "#17becf",  # teal
+    "sac":    "#2ca02c",  # green
+    "sac_kl_f": "#ff7f0e",  # orange
+    "sac_kl_ppo": "#17becf",  # teal
     "random": "#7f7f7f",  # grey
     "noop":   "#9467bd",  # purple
 }
@@ -66,7 +66,7 @@ def _plot_one_metric(df: pd.DataFrame, metric: str, out_path: Path, ylabel: str,
     fig, ax = plt.subplots(figsize=(8, 5))
 
     # Determine x range from algo data.
-    algo_dfs = {a: _algo_curve(df, a, metric, cadence) for a in ("dqn", "ppo", "qac", "qac_fk", "qac_kp")}
+    algo_dfs = {a: _algo_curve(df, a, metric, cadence) for a in ("dqn", "ppo", "sac", "sac_kl_f", "sac_kl_ppo")}
     x_max = 0
     for a, curve in algo_dfs.items():
         if curve.empty:
@@ -74,7 +74,7 @@ def _plot_one_metric(df: pd.DataFrame, metric: str, out_path: Path, ylabel: str,
         x_max = max(x_max, int(curve["step"].max()))
 
     # Algos: line + band.
-    for algo in ("dqn", "ppo", "qac", "qac_fk", "qac_kp"):
+    for algo in ("dqn", "ppo", "sac", "sac_kl_f", "sac_kl_ppo"):
         curve = algo_dfs[algo]
         if curve.empty:
             continue

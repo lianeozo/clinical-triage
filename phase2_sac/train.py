@@ -1,4 +1,4 @@
-"""Entry point: python -m phase2_qac.train --algo {qac,qac_fk,qac_kp,random,noop} --preset {smoke,standard} ..."""
+"""Entry point: python -m phase2_sac.train --algo {sac,sac_kl_f,sac_kl_ppo,random,noop} --preset {smoke,standard} ..."""
 from __future__ import annotations
 
 import argparse
@@ -15,15 +15,15 @@ from triage_rl.agents.noop import NoOpAgent
 from triage_rl.agents.random import RandomAgent
 from triage_rl.buffers.replay import ReplayBuffer
 from triage_rl.config import (EnvConfig, OffPolicyConfig,
-                              QACAgentConfig, QACFKAgentConfig, QACKPAgentConfig)
+                              SACAgentConfig, SACKLFAgentConfig, SACKLPPOAgentConfig)
 from triage_rl.env import Env
 from triage_rl.evaluator import Evaluator
 from triage_rl.logger import Logger
 from triage_rl.trainers.off_policy import OffPolicyTrainer, make_eval_pool
-from phase2_qac.agents.qac import QACAgent
-from phase2_qac.agents.qac_fk import QACFKAgent
-from phase2_qac.agents.qac_kp import QACKPAgent
-from phase2_qac.presets import PRESETS
+from phase2_sac.agents.sac import SACAgent
+from phase2_sac.agents.sac_kl_f import SACKLFAgent
+from phase2_sac.agents.sac_kl_ppo import SACKLPPOAgent
+from phase2_sac.presets import PRESETS
 
 
 def _run_name(preset: str, algo: str, tag: str | None) -> str:
@@ -83,26 +83,26 @@ def run_one_seed(algo: str, preset_name: str, seed: int, out_root: Path,
         return out_dir
 
     # Build trained agent.
-    if algo == "qac":
-        agent_cfg = QACAgentConfig()
-        agent = QACAgent(obs_dim=State.NUM_STATE_VARS,
+    if algo == "sac":
+        agent_cfg = SACAgentConfig()
+        agent = SACAgent(obs_dim=State.NUM_STATE_VARS,
                          n_actions=Action.NUM_ACTIONS_TOTAL,
                          config=agent_cfg, seed=seed, device=device)
-    elif algo == "qac_fk":
-        agent_cfg = QACFKAgentConfig()
-        agent = QACFKAgent(obs_dim=State.NUM_STATE_VARS,
+    elif algo == "sac_kl_f":
+        agent_cfg = SACKLFAgentConfig()
+        agent = SACKLFAgent(obs_dim=State.NUM_STATE_VARS,
                            n_actions=Action.NUM_ACTIONS_TOTAL,
                            config=agent_cfg, seed=seed, device=device)
-    elif algo == "qac_kp":
+    elif algo == "sac_kl_ppo":
         if ppo_run_dir is None:
-            raise SystemExit("--algo qac_kp requires --ppo-run-dir")
-        agent_cfg = QACKPAgentConfig()
-        agent = QACKPAgent(obs_dim=State.NUM_STATE_VARS,
+            raise SystemExit("--algo sac_kl_ppo requires --ppo-run-dir")
+        agent_cfg = SACKLPPOAgentConfig()
+        agent = SACKLPPOAgent(obs_dim=State.NUM_STATE_VARS,
                            n_actions=Action.NUM_ACTIONS_TOTAL,
                            config=agent_cfg, seed=seed, device=device,
                            ppo_run_dir=ppo_run_dir)
     else:
-        raise SystemExit(f"unknown algo {algo!r}; valid: qac, qac_fk, qac_kp, random, noop")
+        raise SystemExit(f"unknown algo {algo!r}; valid: sac, sac_kl_f, sac_kl_ppo, random, noop")
 
     buf = ReplayBuffer(capacity=preset["total_env_steps"],
                        obs_dim=State.NUM_STATE_VARS, seed=seed)
@@ -132,7 +132,7 @@ def run_one_seed(algo: str, preset_name: str, seed: int, out_root: Path,
 
 def main() -> None:
     p = argparse.ArgumentParser()
-    p.add_argument("--algo", required=True, choices=["qac", "qac_fk", "qac_kp", "random", "noop"])
+    p.add_argument("--algo", required=True, choices=["sac", "sac_kl_f", "sac_kl_ppo", "random", "noop"])
     p.add_argument("--preset", required=True, choices=list(PRESETS.keys()))
     p.add_argument("--seed", type=int, default=None)
     p.add_argument("--all-seeds", action="store_true")
@@ -142,13 +142,13 @@ def main() -> None:
                    help="default points at phase1's results root (shared output dir, see Phase 2 spec §3.3)")
     p.add_argument("--device", default="auto")
     p.add_argument("--ppo-run-dir", type=Path, default=None,
-                   help="required for --algo qac_kp; path to a Phase-1 PPO run dir containing seed_<N>/checkpoints/*.pt")
+                   help="required for --algo sac_kl_ppo; path to a Phase-1 PPO run dir containing seed_<N>/checkpoints/*.pt")
     args = p.parse_args()
 
     if args.all_seeds and args.seed is not None:
         raise SystemExit("--seed and --all-seeds are mutually exclusive")
-    if args.algo == "qac_kp" and not args.eval_only and args.ppo_run_dir is None:
-        raise SystemExit("--algo qac_kp requires --ppo-run-dir")
+    if args.algo == "sac_kl_ppo" and not args.eval_only and args.ppo_run_dir is None:
+        raise SystemExit("--algo sac_kl_ppo requires --ppo-run-dir")
 
     seeds = PRESETS[args.preset]["seeds"] if args.all_seeds else [args.seed or 0]
     out_root = Path(args.out_root)
