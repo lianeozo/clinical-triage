@@ -5,6 +5,7 @@ import json
 from pathlib import Path
 
 import numpy as np
+import torch
 
 from triage_rl.agents.base import Agent
 from triage_rl.config import OfflineConfig
@@ -29,21 +30,33 @@ class OfflineTrainer:
         self.evaluator.set_eval_pool(pool)
         self.evaluator.evaluate_references_once()
 
-        data = np.load(self.cfg.dataset_path)
-        n_total = len(data['action'])
+        data_np = np.load(self.cfg.dataset_path)
+        n_total = len(data_np['action'])
         if n_total == 0:
             raise RuntimeError(f"empty dataset at {self.cfg.dataset_path}")
         print(f"[offline] dataset loaded: {n_total} transitions from {self.cfg.dataset_path}")
 
+        # Preload everything to GPU as torch tensors. Dataset is ~70MB total — trivial for any GPU.
+        device = self.agent.device
+        data = {
+            'obs':        torch.from_numpy(data_np['obs']).to(device),
+            'action':     torch.from_numpy(data_np['action']).long().to(device),
+            'reward':     torch.from_numpy(data_np['reward']).to(device),
+            'next_obs':   torch.from_numpy(data_np['next_obs']).to(device),
+            'terminated': torch.from_numpy(data_np['terminated']).to(device),
+        }
+        reward_scale = float(self.cfg.reward_scale)
+
         rng = np.random.default_rng(self.cfg.seed)
         for step in range(1, self.cfg.total_grad_steps + 1):
-            idx = rng.integers(0, n_total, size=self.cfg.batch_size)
+            idx_np = rng.integers(0, n_total, size=self.cfg.batch_size)
+            idx = torch.from_numpy(idx_np).to(device)
             batch = {
-                'obs':            data['obs'][idx],
-                'action':         data['action'][idx],
-                'next_obs':       data['next_obs'][idx],
-                'terminated':     data['terminated'][idx],
-                'scaled_reward':  (data['reward'][idx] * self.cfg.reward_scale).astype(np.float32),
+                'obs':           data['obs'][idx],
+                'action':        data['action'][idx],
+                'next_obs':      data['next_obs'][idx],
+                'terminated':    data['terminated'][idx],
+                'scaled_reward': data['reward'][idx] * reward_scale,
             }
             metrics = self.agent.update(batch)
             if step % self.cfg.internals_log_every == 0:
