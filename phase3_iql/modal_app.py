@@ -24,7 +24,7 @@ volume = modal.Volume.from_name("phase1-results", create_if_missing=True)
 app = modal.App("clinical-triage-phase3", image=image)
 
 
-@app.function(gpu="T4", volumes={"/results": volume}, timeout=60 * 60 * 3,
+@app.function(gpu="A100", volumes={"/results": volume}, timeout=60 * 60 * 3,
               max_containers=10)
 def run_one(algo: str, seed: int, preset: str = "standard",
             branch: str = "saimai",
