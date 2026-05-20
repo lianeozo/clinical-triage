@@ -110,7 +110,7 @@ def main() -> None:
     if df.empty:
         raise SystemExit(f"no rows in {args.aggregated}")
 
-    for algo in ("dqn", "ppo", "sac", "sac_kl_f", "sac_kl_ppo"):
+    for algo in ("dqn", "ppo", "sac", "sac_kl_f", "sac_kl_ppo", "iql", "iql_kl_f"):
         out_path = args.out_dir / f"action_distrib_{algo}.png"
         _plot_one_algo(df, algo, out_path)
         print(f"wrote {out_path}")
