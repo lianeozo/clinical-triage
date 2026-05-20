@@ -2,10 +2,10 @@
 from __future__ import annotations
 
 SMOKE = {
-    "total_env_steps": 1000,
-    "seeds": [0, 1],
-    "eval_cadence": 100,
-    "n_eval_episodes": 20,
+    "total_env_steps": 100_000,
+    "seeds": [0, 1,2],
+    "eval_cadence": 10_000,
+    "n_eval_episodes": 50,
 }
 
 STANDARD = {
