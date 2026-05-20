@@ -84,3 +84,36 @@ class SACKLFAgentConfig(SACAgentConfig):
 @dataclass
 class SACKLPPOAgentConfig(SACAgentConfig):
     kl_beta: float = 0.5                     # weight on KL(π_SAC || π_PPO_ref)
+
+
+@dataclass
+class IQLAgentConfig:
+    hidden_dim: int = 256
+    n_layers: int = 2
+    actor_lr: float = 3e-4
+    critic_lr: float = 3e-4
+    v_lr: float = 3e-4
+    gamma: float = 0.99
+    tau: float = 0.005                  # Polyak update rate for target Q (NOT the expectile coefficient)
+    expectile_lambda: float = 0.8       # λ — asymmetric expectile coefficient
+    awr_beta: float = 3.0               # β — advantage temperature in AWR weight
+    awr_weight_clip: float = 10.0       # max exponent value to prevent overflow
+    max_grad_norm: float = 1.0
+
+
+@dataclass
+class IQLKLFAgentConfig(IQLAgentConfig):
+    feasibility_beta: float = 0.5       # same default as SAC-KL-F's β_feas
+
+
+@dataclass
+class OfflineConfig:
+    total_grad_steps: int
+    seed: int
+    out_dir: Path
+    dataset_path: Path
+    reward_scale: float = 1e-4
+    batch_size: int = 128
+    eval_cadence: int = 25_000
+    n_eval_episodes: int = 50
+    internals_log_every: int = 1000
