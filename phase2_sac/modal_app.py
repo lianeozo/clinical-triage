@@ -29,40 +29,63 @@ app = modal.App("clinical-triage-phase2", image=image)
 
 @app.function(gpu="T4", volumes={"/results": volume}, timeout=60 * 60 * 3,
               max_containers=10)
-def run_one(algo: str, seed: int, preset: str = "standard",
-            branch: str = "saimai", ppo_run_path: str = "") -> str:
+def run_one(
+    algo: str,
+    seed: int,
+    preset: str = "standard",
+    branch: str = "saimai",
+    ppo_run_path: str = "",
+    tag: str = "reward0",
+) -> str:
     """One Modal container = one (algo, seed) training run."""
     import subprocess
+
     subprocess.run(["git", "fetch", "origin"], cwd="/app", check=True)
     subprocess.run(["git", "checkout", "--detach", f"origin/{branch}"],
                    cwd="/app", check=True)
-    args = ["python", "-m", "phase2_sac.train",
-            "--algo", algo, "--seed", str(seed),
-            "--preset", preset, "--out-root", "/results"]
+
+    args = [
+        "python", "-m", "phase2_sac.train",
+        "--algo", algo,
+        "--seed", str(seed),
+        "--preset", preset,
+        "--out-root", "/results",
+        "--tag", tag,
+    ]
+
     if algo == "sac_kl_ppo":
         if not ppo_run_path:
             raise ValueError("sac_kl_ppo requires --ppo-run-path")
         args += ["--ppo-run-dir", ppo_run_path]
+
     subprocess.run(args, cwd="/app", check=True)
     volume.commit()
-    return f"{algo}/seed_{seed} ({preset}) done"
-
+    return f"{algo}/seed_{seed} ({preset}, {tag}) done"
 
 @app.local_entrypoint()
-def main(preset: str = "standard",
-         algos: str = "sac,sac_kl_f,sac_kl_ppo",
-         branch: str = "saimai",
-         ppo_run_path: str = "/results/2026-05-20T01-26-standard-ppo") -> None:
-    """Fan out (#algos x #seeds) containers; Modal serializes the excess past concurrency_limit=10."""
+def main(
+    preset: str = "standard",
+    algos: str = "sac,sac_kl_f,sac_kl_ppo",
+    branch: str = "saimai",
+    ppo_run_path: str = "/results/2026-05-20T01-26-standard-ppo",
+    tag: str = "reward0",
+) -> None:
+    """Fan out (#algos x #seeds) containers."""
     from phase2_sac.presets import PRESETS
+
     algo_list = [a.strip() for a in algos.split(",") if a.strip()]
     if not algo_list:
         raise SystemExit("no algos specified")
+
     seeds = PRESETS[preset]["seeds"]
-    jobs = [(a, s, preset, branch, ppo_run_path) for a in algo_list for s in seeds]
+    jobs = [(a, s, preset, branch, ppo_run_path, tag) for a in algo_list for s in seeds]
+
     print(f"launching {len(jobs)} containers (concurrency_limit=10): "
-          f"{[(a, s) for a, s, _, _, _ in jobs]}")
+          f"{[(a, s, tag) for a, s, _, _, _, tag in jobs]}")
+
     results = list(run_one.starmap(jobs))
+
     for r in results:
         print(f"  {r}")
+
     print(f"all {len(jobs)} containers done; volume committed")
