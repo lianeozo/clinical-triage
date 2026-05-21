@@ -55,6 +55,10 @@ class IQLAgent(Agent):
             lr=config.critic_lr)
         self.v_opt = optim.Adam(self.v_net.parameters(), lr=config.v_lr)
 
+        # Precomputed expectile-lambda constants (avoid per-step torch.tensor() allocations).
+        self._lam_high = torch.tensor(config.expectile_lambda, device=self.device)
+        self._lam_low = torch.tensor(1.0 - config.expectile_lambda, device=self.device)
+
     def act(self, obs: np.ndarray, eval_mode: bool = False) -> int:
         with torch.no_grad():
             x = torch.from_numpy(obs.astype(np.float32)).unsqueeze(0).to(self.device)
@@ -70,23 +74,29 @@ class IQLAgent(Agent):
         return -(awr_weight * log_p_taken).mean(), {}
 
     def update(self, batch: dict[str, np.ndarray]) -> dict[str, float]:
-        obs = torch.from_numpy(batch["obs"]).to(self.device)
-        action = torch.from_numpy(batch["action"]).long().to(self.device)
-        scaled_reward = torch.from_numpy(batch["scaled_reward"]).to(self.device)
-        next_obs = torch.from_numpy(batch["next_obs"]).to(self.device)
-        terminated = torch.from_numpy(batch["terminated"]).to(self.device)
+        def _to_t(x, dtype=None):
+            if isinstance(x, torch.Tensor):
+                return x.to(self.device, non_blocking=True) if dtype is None else x.to(self.device, dtype=dtype, non_blocking=True)
+            if dtype is None:
+                return torch.from_numpy(x).to(self.device, non_blocking=True)
+            return torch.from_numpy(x).to(self.device, dtype=dtype, non_blocking=True)
+
+        obs = _to_t(batch["obs"])
+        action = _to_t(batch["action"]).long()
+        scaled_reward = _to_t(batch["scaled_reward"])
+        next_obs = _to_t(batch["next_obs"])
+        terminated = _to_t(batch["terminated"])
+        action_col = action.unsqueeze(1)
 
         # --- 1. V update (asymmetric expectile loss) ---
         with torch.no_grad():
-            q1_t_sa = self.target_q1(obs).gather(1, action.unsqueeze(1)).squeeze(1)
-            q2_t_sa = self.target_q2(obs).gather(1, action.unsqueeze(1)).squeeze(1)
+            q1_t_sa = self.target_q1(obs).gather(1, action_col).squeeze(1)
+            q2_t_sa = self.target_q2(obs).gather(1, action_col).squeeze(1)
             y_v = torch.min(q1_t_sa, q2_t_sa)
 
         v_pred = self.v_net(obs).squeeze(-1)
         u = y_v - v_pred
-        weight_lam = torch.where(u > 0,
-                                  torch.tensor(self.cfg.expectile_lambda, device=self.device),
-                                  torch.tensor(1.0 - self.cfg.expectile_lambda, device=self.device))
+        weight_lam = torch.where(u > 0, self._lam_high, self._lam_low)
         v_loss = (weight_lam * u.pow(2)).mean()
 
         if v_loss.requires_grad:
@@ -100,8 +110,8 @@ class IQLAgent(Agent):
             v_next = self.v_net(next_obs).squeeze(-1)
             y_q = scaled_reward + (1.0 - terminated.float()) * self.cfg.gamma * v_next
 
-        q1_pred = self.q1(obs).gather(1, action.unsqueeze(1)).squeeze(1)
-        q2_pred = self.q2(obs).gather(1, action.unsqueeze(1)).squeeze(1)
+        q1_pred = self.q1(obs).gather(1, action_col).squeeze(1)
+        q2_pred = self.q2(obs).gather(1, action_col).squeeze(1)
         q_loss = F.mse_loss(q1_pred, y_q) + F.mse_loss(q2_pred, y_q)
 
         self.q_opt.zero_grad()
@@ -114,7 +124,7 @@ class IQLAgent(Agent):
         # --- 3. Policy update (AWR) ---
         with torch.no_grad():
             q_min_sa = torch.min(self.q1(obs), self.q2(obs)).gather(
-                1, action.unsqueeze(1)).squeeze(1)
+                1, action_col).squeeze(1)
             advantage = q_min_sa - self.v_net(obs).squeeze(-1)
             awr_weight = torch.exp(
                 torch.clamp(self.cfg.awr_beta * advantage,
@@ -122,7 +132,7 @@ class IQLAgent(Agent):
 
         logits = self.actor(obs)
         log_p = F.log_softmax(logits, dim=-1)
-        log_p_taken = log_p.gather(1, action.unsqueeze(1)).squeeze(1)
+        log_p_taken = log_p.gather(1, action_col).squeeze(1)
 
         policy_loss, extra = self._compute_policy_loss(logits, log_p, awr_weight, log_p_taken)
 

@@ -11,30 +11,38 @@ from typing import Any
 import pandas as pd
 
 
+REWARD_VERSION = "reward3"  # change this to reward2 / reward3 / reward0
+
 RUNS = [
     {
-        "run_name": "dqn_reward1",
+        "run_name": f"dqn_{REWARD_VERSION}",
         "algo": "dqn",
-        "reward_version": "reward1",
-        "path": "sample_runs/reward1/standard-dqn-reward1",
+        "reward_version": REWARD_VERSION,
+        "path": f"sample_runs/{REWARD_VERSION}/standard-dqn-{REWARD_VERSION}",
     },
     {
-        "run_name": "ppo_reward1",
+        "run_name": f"ppo_{REWARD_VERSION}",
         "algo": "ppo",
-        "reward_version": "reward1",
-        "path": "sample_runs/reward1/standard-ppo-reward1",
+        "reward_version": REWARD_VERSION,
+        "path": f"sample_runs/{REWARD_VERSION}/standard-ppo-{REWARD_VERSION}",
     },
     {
-        "run_name": "sac_reward1",
+        "run_name": f"sac_{REWARD_VERSION}",
         "algo": "sac",
-        "reward_version": "reward1",
-        "path": "sample_runs/reward1/standard-sac-reward1",
+        "reward_version": REWARD_VERSION,
+        "path": f"sample_runs/{REWARD_VERSION}/standard-sac-{REWARD_VERSION}",
     },
     {
-        "run_name": "sac_kl_f_reward1",
+        "run_name": f"sac_kl_f_{REWARD_VERSION}",
         "algo": "sac_kl_f",
-        "reward_version": "reward1",
-        "path": "sample_runs/reward1/standard-sac_kl_f-reward1",
+        "reward_version": REWARD_VERSION,
+        "path": f"sample_runs/{REWARD_VERSION}/standard-sac_kl_f-{REWARD_VERSION}",
+    },
+    {
+        "run_name": f"sac_kl_ppo_{REWARD_VERSION}",
+        "algo": "sac_kl_ppo",
+        "reward_version": REWARD_VERSION,
+        "path": f"sample_runs/{REWARD_VERSION}/standard-sac_kl_ppo-{REWARD_VERSION}",
     },
 ]
 
@@ -262,7 +270,7 @@ def make_final_summary(final_df: pd.DataFrame) -> pd.DataFrame:
 
 def main() -> None:
     parser = argparse.ArgumentParser()
-    parser.add_argument("--out-dir", default="outputs/eval_reward1")
+    parser.add_argument("--out-dir", default=f"outputs/eval_{REWARD_VERSION}")
     parser.add_argument(
         "--no-baselines",
         action="store_true",
@@ -281,17 +289,20 @@ def main() -> None:
     )
 
     # 1. Full checkpoint-level timeseries.
-    timeseries_out = out_dir / "eval_timeseries.csv"
+    #timeseries_out = out_dir / "eval_timeseries.csv"
+    timeseries_out = out_dir / f"eval_timeseries_{REWARD_VERSION}.csv"
     df.to_csv(timeseries_out, index=False)
 
     # 2. Final checkpoint per seed, learned policy only.
     final_by_seed = make_final_by_seed(df, learned_only=True)
-    final_by_seed_out = out_dir / "eval_final_by_seed.csv"
+    final_by_seed_out = out_dir / f"eval_final_by_seed_{REWARD_VERSION}.csv"
+    #final_by_seed_out = out_dir / "eval_final_by_seed.csv"
     final_by_seed.to_csv(final_by_seed_out, index=False)
 
     # 3. Across-seed final summary, learned policy only.
     final_summary = make_final_summary(final_by_seed)
-    final_summary_out = out_dir / "eval_final_summary.csv"
+    #final_summary_out = out_dir / "eval_final_summary.csv"
+    final_summary_out = out_dir / f"eval_final_summary_{REWARD_VERSION}.csv"
     final_summary.to_csv(final_summary_out, index=False)
 
     print(f"Wrote: {timeseries_out}")

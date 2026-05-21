@@ -11,31 +11,18 @@ from typing import Any
 import pandas as pd
 
 
+REWARD_VERSION = "reward3"  # change this to reward0 / reward1 / reward2 / reward3
+
+ALGOS = ["dqn", "ppo", "sac", "sac_kl_f", "sac_kl_ppo"]
+
 RUNS = [
     {
-        "run_name": "dqn_reward1",
-        "algo": "dqn",
-        "reward_version": "reward1",
-        "path": "sample_runs/reward1/standard-dqn-reward1",
-    },
-    {
-        "run_name": "ppo_reward1",
-        "algo": "ppo",
-        "reward_version": "reward1",
-        "path": "sample_runs/reward1/standard-ppo-reward1",
-    },
-    {
-        "run_name": "sac_reward1",
-        "algo": "sac",
-        "reward_version": "reward1",
-        "path": "sample_runs/reward1/standard-sac-reward1",
-    },
-    {
-        "run_name": "sac_kl_f_reward1",
-        "algo": "sac_kl_f",
-        "reward_version": "reward1",
-        "path": "sample_runs/reward1/standard-sac_kl_f-reward1",
-    },
+        "run_name": f"{algo}_{REWARD_VERSION}",
+        "algo": algo,
+        "reward_version": REWARD_VERSION,
+        "path": f"sample_runs/{REWARD_VERSION}/standard-{algo}-{REWARD_VERSION}",
+    }
+    for algo in ALGOS
 ]
 
 
@@ -154,7 +141,6 @@ def summarize_file(
         "step": step,
         "source_file": str(traj_path),
 
-        # new trajectory-level diagnostics only
         "avg_abnormal_vitals": mean_or_none([float(x) for x in all_abn]),
         "avg_final_abnormal_vitals": mean_or_none(final_abn),
 
@@ -176,7 +162,6 @@ def summarize_file(
         "death_icu_rate": soc_icu_rate_for_episodes(death_eps),
         "discharge_icu_rate": soc_icu_rate_for_episodes(discharge_eps),
 
-        # optional counts for debugging / interpretation
         "n_episodes": len(episodes),
         "n_death_episodes": len(death_eps),
         "n_discharge_episodes": len(discharge_eps),
@@ -268,7 +253,7 @@ def make_final_summary(final_df: pd.DataFrame) -> pd.DataFrame:
 
 def main() -> None:
     parser = argparse.ArgumentParser()
-    parser.add_argument("--out-dir", default="outputs/eval_reward1")
+    parser.add_argument("--out-dir", default=f"outputs/eval_{REWARD_VERSION}")
     args = parser.parse_args()
 
     out_dir = Path(args.out_dir)
@@ -277,15 +262,15 @@ def main() -> None:
     df = load_diagnostics()
     df = df.sort_values(["reward_version", "algo", "seed", "eval_idx", "step"])
 
-    timeseries_out = out_dir / "trajectory_diagnostic_timeseries.csv"
+    timeseries_out = out_dir / f"trajectory_diagnostic_timeseries_{REWARD_VERSION}.csv"
     df.to_csv(timeseries_out, index=False)
 
     final_by_seed = make_final_by_seed(df)
-    final_by_seed_out = out_dir / "trajectory_diagnostic_final_by_seed.csv"
+    final_by_seed_out = out_dir / f"trajectory_diagnostic_final_by_seed_{REWARD_VERSION}.csv"
     final_by_seed.to_csv(final_by_seed_out, index=False)
 
     final_summary = make_final_summary(final_by_seed)
-    final_summary_out = out_dir / "trajectory_diagnostic_final_summary.csv"
+    final_summary_out = out_dir / f"trajectory_diagnostic_final_summary_{REWARD_VERSION}.csv"
     final_summary.to_csv(final_summary_out, index=False)
 
     print(f"Wrote: {timeseries_out}")
@@ -307,6 +292,7 @@ def main() -> None:
         "death_icu_rate_mean",
         "discharge_icu_rate_mean",
     ]
+
     print("\nTrajectory diagnostic final summary:")
     print(final_summary[cols].to_string(index=False))
 

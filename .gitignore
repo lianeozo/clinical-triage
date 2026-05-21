@@ -4,3 +4,14 @@ notes.md
 *.pkl*
 sample_runs/
 outputs/
+
+# macOS
+.DS_Store
+
+# local experiment outputs
+results/
+sample_runs/
+outputs/
+
+# local backups
+mdp_backup/

@@ -12,111 +12,93 @@ import matplotlib.pyplot as plt
 import pandas as pd
 
 
+REWARD_VERSION = "reward3"  # change this to reward0 / reward1 / reward2 / reward3
+
+ALGOS = ["dqn", "ppo", "sac", "sac_kl_f", "sac_kl_ppo"]
+
 RUNS = [
     {
-        "run_name": "dqn_reward1",
-        "algo": "dqn",
-        "reward_version": "reward1",
-        "path": "sample_runs/reward1/standard-dqn-reward1",
-    },
-    {
-        "run_name": "ppo_reward1",
-        "algo": "ppo",
-        "reward_version": "reward1",
-        "path": "sample_runs/reward1/standard-ppo-reward1",
-    },
-    {
-        "run_name": "sac_reward1",
-        "algo": "sac",
-        "reward_version": "reward1",
-        "path": "sample_runs/reward1/standard-sac-reward1",
-    },
-    {
-        "run_name": "sac_kl_f_reward1",
-        "algo": "sac_kl_f",
-        "reward_version": "reward1",
-        "path": "sample_runs/reward1/standard-sac_kl_f-reward1",
-    },
+        "run_name": f"{algo}_{REWARD_VERSION}",
+        "algo": algo,
+        "reward_version": REWARD_VERSION,
+        "path": f"sample_runs/{REWARD_VERSION}/standard-{algo}-{REWARD_VERSION}",
+    }
+    for algo in ALGOS
 ]
 
 
 METRIC_SPECS = {
-    # Core checkpoint metrics
     "avg_return": {
         "source": "reward_mean",
-        "title": "Eval Reward (raw) vs env-steps",
+        "title": f"Eval Reward (raw) vs env-steps ({REWARD_VERSION})",
         "ylabel": "Eval Reward (raw)",
-        "filename": "eval_reward_raw.png",
+        "filename": f"eval_reward_raw_{REWARD_VERSION}.png",
     },
     "mortality_rate": {
         "source": "mortality_rate",
-        "title": "Mortality Rate vs env-steps",
+        "title": f"Mortality Rate vs env-steps ({REWARD_VERSION})",
         "ylabel": "Mortality Rate",
-        "filename": "mortality_rate.png",
+        "filename": f"mortality_rate_{REWARD_VERSION}.png",
     },
     "discharge_rate": {
         "source": "discharge_rate",
-        "title": "Discharge Rate vs env-steps",
+        "title": f"Discharge Rate vs env-steps ({REWARD_VERSION})",
         "ylabel": "Discharge Rate",
-        "filename": "discharge_rate.png",
+        "filename": f"discharge_rate_{REWARD_VERSION}.png",
     },
     "timeout_rate": {
         "source": "timeout_rate",
-        "title": "Timeout Rate vs env-steps",
+        "title": f"Timeout Rate vs env-steps ({REWARD_VERSION})",
         "ylabel": "Timeout Rate",
-        "filename": "timeout_rate.png",
+        "filename": f"timeout_rate_{REWARD_VERSION}.png",
     },
     "avg_episode_length": {
         "source": "ep_length_mean",
-        "title": "Mean Episode Length vs env-steps",
+        "title": f"Mean Episode Length vs env-steps ({REWARD_VERSION})",
         "ylabel": "Mean Episode Length",
-        "filename": "mean_episode_length.png",
+        "filename": f"mean_episode_length_{REWARD_VERSION}.png",
     },
     "infeasible_action_rate": {
         "source": "clamp_rate",
-        "title": "Infeasible Action Rate vs env-steps",
+        "title": f"Infeasible Action Rate vs env-steps ({REWARD_VERSION})",
         "ylabel": "Clamp Rate",
-        "filename": "infeasible_action_rate.png",
+        "filename": f"infeasible_action_rate_{REWARD_VERSION}.png",
     },
-
-    # SOC dwell fractions
     "async_rate": {
         "source": "async_rate",
-        "title": "Async Dwell Fraction vs env-steps",
+        "title": f"Async Dwell Fraction vs env-steps ({REWARD_VERSION})",
         "ylabel": "Async Dwell Fraction",
-        "filename": "async_rate.png",
+        "filename": f"async_rate_{REWARD_VERSION}.png",
     },
     "ambulatory_rate": {
         "source": "ambulatory_rate",
-        "title": "Ambulatory Dwell Fraction vs env-steps",
+        "title": f"Ambulatory Dwell Fraction vs env-steps ({REWARD_VERSION})",
         "ylabel": "Ambulatory Dwell Fraction",
-        "filename": "ambulatory_rate.png",
+        "filename": f"ambulatory_rate_{REWARD_VERSION}.png",
     },
     "facility_rate": {
         "source": "facility_rate",
-        "title": "Facility Dwell Fraction vs env-steps",
+        "title": f"Facility Dwell Fraction vs env-steps ({REWARD_VERSION})",
         "ylabel": "Facility Dwell Fraction",
-        "filename": "facility_rate.png",
+        "filename": f"facility_rate_{REWARD_VERSION}.png",
     },
     "icu_rate": {
         "source": "icu_rate",
-        "title": "ICU Dwell Fraction vs env-steps",
+        "title": f"ICU Dwell Fraction vs env-steps ({REWARD_VERSION})",
         "ylabel": "ICU Dwell Fraction",
-        "filename": "icu_rate.png",
+        "filename": f"icu_rate_{REWARD_VERSION}.png",
     },
-
-    # Action histogram diagnostics
     "action_entropy": {
         "source": "action_entropy",
-        "title": "Action Entropy vs env-steps",
+        "title": f"Action Entropy vs env-steps ({REWARD_VERSION})",
         "ylabel": "Action Entropy",
-        "filename": "action_entropy.png",
+        "filename": f"action_entropy_{REWARD_VERSION}.png",
     },
     "top_action_fraction": {
         "source": "top_action_fraction",
-        "title": "Top Action Fraction vs env-steps",
+        "title": f"Top Action Fraction vs env-steps ({REWARD_VERSION})",
         "ylabel": "Top Action Fraction",
-        "filename": "top_action_fraction.png",
+        "filename": f"top_action_fraction_{REWARD_VERSION}.png",
     },
 }
 
@@ -160,15 +142,6 @@ def get_soc_rates(row: dict[str, Any]) -> dict[str, float | None]:
 
 
 def action_hist_stats(row: dict[str, Any]) -> dict[str, float | None]:
-    """
-    Compute action distribution diagnostics from action_hist.
-
-    action_entropy:
-        Higher = more diverse action usage.
-    top_action_fraction:
-        Fraction of all actions assigned to the most frequent action.
-        Higher = more action concentration / possible action collapse.
-    """
     hist = row.get("action_hist")
 
     if not isinstance(hist, list) or len(hist) == 0:
@@ -212,7 +185,6 @@ def flatten_eval_row(
         "step": row.get("step"),
         "eval_policy": row.get("algo"),
 
-        # Original checkpoint fields
         "reward_mean": row.get("reward_mean"),
         "reward_std": row.get("reward_std"),
         "mortality_rate": row.get("mortality_rate"),
@@ -222,7 +194,6 @@ def flatten_eval_row(
         "clamp_rate": row.get("clamp_rate"),
         "n_episodes": row.get("n_episodes"),
 
-        # Derived checkpoint-level diagnostics
         **soc_rates,
         **action_stats,
     }
@@ -252,10 +223,8 @@ def load_eval_rows() -> tuple[pd.DataFrame, pd.DataFrame]:
             seed = infer_seed(seed_dir)
             rows = read_jsonl(eval_path)
 
-            # Learned policy rows only, e.g. dqn folder keeps only algo == dqn.
             learned_rows = [row for row in rows if row.get("algo") == run["algo"]]
 
-            # Important: align across seeds by eval_idx, not exact env step.
             for eval_idx, row in enumerate(learned_rows):
                 learned_rows_all.append(
                     flatten_eval_row(
@@ -266,7 +235,6 @@ def load_eval_rows() -> tuple[pd.DataFrame, pd.DataFrame]:
                     )
                 )
 
-            # Baselines, usually only step 0.
             for row in rows:
                 if row.get("algo") in {"random", "noop"}:
                     baseline_rows_all.append(
@@ -315,7 +283,6 @@ def plot_metric(
             .sort_values("eval_idx")
         )
 
-        # Drop rows where this metric is missing.
         summary = summary.dropna(subset=["mean"])
         if summary.empty:
             continue
@@ -330,7 +297,6 @@ def plot_metric(
         plt.plot(x, mean, label=label)
         plt.fill_between(x, mean - std, mean + std, alpha=0.18)
 
-    # Baseline horizontal lines.
     if not baseline_df.empty and source_col in baseline_df.columns:
         for baseline in ["random", "noop"]:
             base = baseline_df[baseline_df["eval_policy"] == baseline]
@@ -355,7 +321,7 @@ def plot_metric(
 
 def main() -> None:
     parser = argparse.ArgumentParser()
-    parser.add_argument("--out-dir", default="outputs/eval_reward1/figures")
+    parser.add_argument("--out-dir", default=f"outputs/eval_{REWARD_VERSION}/figures")
     args = parser.parse_args()
 
     out_dir = Path(args.out_dir)
@@ -363,12 +329,11 @@ def main() -> None:
 
     learned_df, baseline_df = load_eval_rows()
 
-    # Save plot source data for debugging.
     source_dir = out_dir.parent
     source_dir.mkdir(parents=True, exist_ok=True)
 
-    learned_csv = source_dir / "eval_plot_source_learned.csv"
-    baseline_csv = source_dir / "eval_plot_source_baselines.csv"
+    learned_csv = source_dir / f"eval_plot_source_learned_{REWARD_VERSION}.csv"
+    baseline_csv = source_dir / f"eval_plot_source_baselines_{REWARD_VERSION}.csv"
 
     learned_df.to_csv(learned_csv, index=False)
     baseline_df.to_csv(baseline_csv, index=False)

@@ -9,56 +9,59 @@ import matplotlib.pyplot as plt
 import pandas as pd
 
 
+REWARD_VERSION = "reward3"  # change this to reward0 / reward1 / reward2 / reward3
+
+
 METRIC_SPECS = {
     "avg_abnormal_vitals": {
-        "title": "Average Abnormal Vitals vs env-steps",
+        "title": f"Average Abnormal Vitals vs env-steps ({REWARD_VERSION})",
         "ylabel": "Avg Abnormal Vitals",
-        "filename": "avg_abnormal_vitals.png",
+        "filename": f"avg_abnormal_vitals_{REWARD_VERSION}.png",
     },
     "avg_final_abnormal_vitals": {
-        "title": "Average Final Abnormal Vitals vs env-steps",
+        "title": f"Average Final Abnormal Vitals vs env-steps ({REWARD_VERSION})",
         "ylabel": "Avg Final Abnormal Vitals",
-        "filename": "avg_final_abnormal_vitals.png",
+        "filename": f"avg_final_abnormal_vitals_{REWARD_VERSION}.png",
     },
     "high_abnormal_icu_rate": {
-        "title": "ICU Rate When Abnormal Vitals >= 2 vs env-steps",
+        "title": f"ICU Rate When Abnormal Vitals >= 2 vs env-steps ({REWARD_VERSION})",
         "ylabel": "High-Abnormal ICU Rate",
-        "filename": "high_abnormal_icu_rate.png",
+        "filename": f"high_abnormal_icu_rate_{REWARD_VERSION}.png",
     },
     "low_abnormal_icu_rate": {
-        "title": "ICU Rate When Abnormal Vitals == 0 vs env-steps",
+        "title": f"ICU Rate When Abnormal Vitals == 0 vs env-steps ({REWARD_VERSION})",
         "ylabel": "Low-Abnormal ICU Rate",
-        "filename": "low_abnormal_icu_rate.png",
+        "filename": f"low_abnormal_icu_rate_{REWARD_VERSION}.png",
     },
     "death_avg_length": {
-        "title": "Average Length of Death Episodes vs env-steps",
+        "title": f"Average Length of Death Episodes vs env-steps ({REWARD_VERSION})",
         "ylabel": "Death Avg Length",
-        "filename": "death_avg_length.png",
+        "filename": f"death_avg_length_{REWARD_VERSION}.png",
     },
     "discharge_avg_length": {
-        "title": "Average Length of Discharge Episodes vs env-steps",
+        "title": f"Average Length of Discharge Episodes vs env-steps ({REWARD_VERSION})",
         "ylabel": "Discharge Avg Length",
-        "filename": "discharge_avg_length.png",
+        "filename": f"discharge_avg_length_{REWARD_VERSION}.png",
     },
     "death_avg_final_abnormal": {
-        "title": "Final Abnormal Vitals in Death Episodes vs env-steps",
+        "title": f"Final Abnormal Vitals in Death Episodes vs env-steps ({REWARD_VERSION})",
         "ylabel": "Death Avg Final Abnormal",
-        "filename": "death_avg_final_abnormal.png",
+        "filename": f"death_avg_final_abnormal_{REWARD_VERSION}.png",
     },
     "discharge_avg_final_abnormal": {
-        "title": "Final Abnormal Vitals in Discharge Episodes vs env-steps",
+        "title": f"Final Abnormal Vitals in Discharge Episodes vs env-steps ({REWARD_VERSION})",
         "ylabel": "Discharge Avg Final Abnormal",
-        "filename": "discharge_avg_final_abnormal.png",
+        "filename": f"discharge_avg_final_abnormal_{REWARD_VERSION}.png",
     },
     "death_icu_rate": {
-        "title": "ICU Dwell Fraction in Death Episodes vs env-steps",
+        "title": f"ICU Dwell Fraction in Death Episodes vs env-steps ({REWARD_VERSION})",
         "ylabel": "Death ICU Rate",
-        "filename": "death_icu_rate.png",
+        "filename": f"death_icu_rate_{REWARD_VERSION}.png",
     },
     "discharge_icu_rate": {
-        "title": "ICU Dwell Fraction in Discharge Episodes vs env-steps",
+        "title": f"ICU Dwell Fraction in Discharge Episodes vs env-steps ({REWARD_VERSION})",
         "ylabel": "Discharge ICU Rate",
-        "filename": "discharge_icu_rate.png",
+        "filename": f"discharge_icu_rate_{REWARD_VERSION}.png",
     },
 }
 
@@ -112,11 +115,11 @@ def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument(
         "--csv",
-        default="outputs/eval_reward1/trajectory_diagnostic_timeseries.csv",
+        default=f"outputs/eval_{REWARD_VERSION}/trajectory_diagnostic_timeseries_{REWARD_VERSION}.csv",
     )
     parser.add_argument(
         "--out-dir",
-        default="outputs/eval_reward1/trajectory_figures",
+        default=f"outputs/eval_{REWARD_VERSION}/trajectory_figures",
     )
     args = parser.parse_args()
 
