@@ -13,8 +13,15 @@ The agent exposes:
 
 Two callables provided by the caller wire in the env's known dynamics:
 
-    env_reward_fn(obs_now, action) -> float    # per-step reward
-    env_done_fn(next_obs)          -> bool     # episode termination flag
+    env_full_reward_fn(prev_obs, action, next_obs) -> float  # per-step reward
+    env_done_fn(next_obs)                          -> bool   # episode termination flag
+
+The reward callable is invoked AFTER sampling ``next_obs`` from the
+ensemble model so it can compute the complete ``MDP.calculateReward``
+(vitals-change feedback, terminal ±10000, SOC-change cost, treatment
+costs, escalation/de-escalation penalties). Glucose-related diabetic
+hidden state is the only signal not reconstructible from obs alone;
+see the trainer's reward implementation for the explicit shortcut.
 
 The ``no_mcts`` flag is the ablation switch from spec §7: when True, the
 planner is skipped entirely and the action is sampled directly from the
@@ -154,7 +161,7 @@ class MBPOAgent:
         model_cfg: EnsembleModelConfig,
         pi_v_cfg: PiVNetConfig,
         mcts_cfg: MCTSConfig,
-        env_reward_fn: Callable[[np.ndarray, int], float],
+        env_full_reward_fn: Callable[[np.ndarray, int, np.ndarray], float],
         env_done_fn: Callable[[np.ndarray], bool],
         seed: int,
         device: str = "cpu",
@@ -166,7 +173,7 @@ class MBPOAgent:
         self.model_cfg = model_cfg
         self.pi_v_cfg = pi_v_cfg
         self.mcts_cfg = mcts_cfg
-        self.env_reward_fn = env_reward_fn
+        self.env_full_reward_fn = env_full_reward_fn
         self.env_done_fn = env_done_fn
         self.seed = int(seed)
         self.device = device
@@ -280,12 +287,15 @@ class MBPOAgent:
                     obs_hist, act_hist, member_idx=member_idx
                 )
             next_obs = _sample_next_obs(logits_list, self.rng)
-            # obs_now is the last obs in history, or `obs` if history empty.
+            # prev_obs is the last obs in history, or `obs` (root) if history empty.
+            # We pass BOTH prev_obs and next_obs to the reward fn so it can
+            # compute the full MDP.calculateReward (vitals-change feedback
+            # and terminal ±10000 both depend on the next obs).
             if hist:
-                obs_now = hist[-1][0]
+                prev_obs = hist[-1][0]
             else:
-                obs_now = obs
-            r = float(self.env_reward_fn(obs_now, action))
+                prev_obs = obs
+            r = float(self.env_full_reward_fn(prev_obs, action, next_obs))
             done = bool(self.env_done_fn(next_obs))
             return next_obs, r, done
 

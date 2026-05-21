@@ -24,12 +24,16 @@ Spec: ``docs/superpowers/specs/2026-05-20-part4-mbpo-mcts-design.md`` §5–§6.
 
 Known shortcuts (documented as CONCERNs in the implementation report):
 
-* ``env_reward_fn`` returns the step-wise treatment + SOC-change cost only —
-  the terminal ±10000 reward from ``MDP.calculateReward`` is NOT computed
-  inside the planner (it depends on the next observation's full vital bins
-  AND the diabetic hidden state, which the obs doesn't carry). Terminal
-  reward propagates into the learner via the V_ψ bootstrap learning from
-  real-env returns instead.
+* ``env_full_reward_fn`` reproduces the FULL ``MDP.calculateReward`` from
+  ``(prev_obs, action, next_obs)`` -- treatment costs, SOC-change cost,
+  vitals-change feedback (``(prev_num_abnormal - next_num_abnormal) * 100``),
+  terminal ±10000, and the escalation / de-escalation severity penalties.
+  This requires the next observation, so the reward callable is invoked
+  by the agent AFTER sampling ``next_obs`` from the ensemble model. The
+  only ``MDP.calculateReward`` signal NOT reconstructible from obs alone
+  is the glucose normality bin (a 5-bin variable whose dynamics leak
+  diabetic hidden state); it is still derivable from ``next_obs`` because
+  the obs vector exposes ``glucose_state`` directly. The reward is exact.
 * ``env_done_fn`` calls ``State.check_absorbing_state`` on a synthesized
   State built from the obs vector. Masked vitals (-1 in the env's obs)
   are clipped to a valid bin first (see ``_sanitize_obs``).
@@ -119,36 +123,122 @@ def _sanitize_obs_array(obs_arr: np.ndarray) -> np.ndarray:
 
 
 # ----------------------------------------------------------------------------
-# env_reward_fn / env_done_fn shortcuts (see module docstring CONCERNs)
+# env_full_reward_fn / env_done_fn (see module docstring CONCERNs)
 # ----------------------------------------------------------------------------
 
-def _env_reward_fn(obs: np.ndarray, action_idx: int) -> float:
-    """Approximate per-step reward from (obs, action) alone.
+# Per-variable "normal bin" used by State.get_num_abnormal:
+#   hr_state == 1, sysbp_state == 1, percoxyg_state == 1, glucose_state == 2.
+# Anything other than these (and != -1, which our sanitizer has clipped out)
+# counts as one abnormal vital. We replicate the count here from the obs
+# vector directly so the reward computation does not allocate a State per
+# call (it gets called once per MCTS leaf expansion).
+_HR_IDX = 0
+_SYSBP_IDX = 1
+_OXYG_IDX = 2
+_GLUC_IDX = 3
+_ANTIB_IDX = 4
+_VASO_IDX = 5
+_VENT_IDX = 6
 
-    Reproduces the deterministic portion of ``MDP.calculateReward``:
 
-    * SOC change cost (-50 if action.soc differs from current soc).
-    * SOC mismatch-with-severity penalty: this requires post-step
-      ``num_abnormal`` so we skip it (the value head learns this signal).
-    * Treatment costs: antibiotic=-10, ventilation=-60, vasopressors=-40.
+def _num_abnormal_from_obs(obs_arr: np.ndarray) -> int:
+    """Count abnormal vitals in a sanitized obs (no -1 entries)."""
+    n = 0
+    if int(obs_arr[_HR_IDX]) != 1:
+        n += 1
+    if int(obs_arr[_SYSBP_IDX]) != 1:
+        n += 1
+    if int(obs_arr[_OXYG_IDX]) != 1:
+        n += 1
+    if int(obs_arr[_GLUC_IDX]) != 2:
+        n += 1
+    return n
 
-    Does NOT compute the terminal ±10000 or the per-step change-in-abnormal
-    reward — those depend on next-obs and (for glucose) the hidden diabetic
-    state. The planner therefore underestimates per-edge rewards; V_ψ
-    closes the gap via its real-env-return targets.
+
+def _on_treatment_from_obs(obs_arr: np.ndarray) -> bool:
+    """Mirror State.on_treatment: any of antibiotic/vaso/vent active."""
+    return (
+        int(obs_arr[_ANTIB_IDX]) != 0
+        or int(obs_arr[_VASO_IDX]) != 0
+        or int(obs_arr[_VENT_IDX]) != 0
+    )
+
+
+def _env_full_reward_fn(
+    prev_obs: np.ndarray, action_idx: int, next_obs: np.ndarray
+) -> float:
+    """Full per-step reward, mirroring ``MDP.calculateReward``.
+
+    Components (in the same order as ``MDP.calculateReward``):
+
+    1. Absorbing terminals (early-return):
+       - ``next num_abnormal >= 3`` -> ``-10_000`` (death).
+       - ``next num_abnormal == 0`` and no active treatment -> ``+10_000``
+         (discharge).
+    2. Vitals-change feedback:
+       ``(prev_num_abnormal - next_num_abnormal) * 100``.
+    3. SOC change penalties:
+       - ``-200 * change_in_soc`` if escalating with ``next num_abnormal == 0``.
+       - ``-100 * soc_gap`` if NOT escalating while ``next num_abnormal >= 2``
+         and there is still headroom (``next_soc < NUM_SOC - 1``).
+       - ``-50`` flat cost on any soc change.
+    4. Treatment costs:
+       ``antibiotic=-10``, ``ventilation=-60``, ``vasopressors=-40``.
+
+    Note: glucose normality is read directly from ``next_obs[_GLUC_IDX]``,
+    so the diabetic hidden state does not need to be reconstructed — the
+    obs already exposes the post-step glucose bin sampled by the ensemble
+    model. (For the real env this is exact; for model rollouts it inherits
+    the model's calibration.)
+
+    Args:
+        prev_obs: ``(V,)`` int observation BEFORE the action (sanitized).
+        action_idx: Discrete action index in ``[0, NUM_ACTIONS_TOTAL)``.
+        next_obs: ``(V,)`` int observation AFTER the action (sanitized).
+
+    Returns:
+        Scalar reward matching ``MDP.calculateReward``.
     """
-    obs_arr = _sanitize_obs(obs)
-    current_soc = int(obs_arr[_SOC_IDX])
+    prev_arr = _sanitize_obs(prev_obs)
+    next_arr = _sanitize_obs(next_obs)
     act = Action(action_idx=int(action_idx))
+
+    next_abn = _num_abnormal_from_obs(next_arr)
+
+    # 1. Terminal rewards short-circuit everything else.
+    if next_abn >= 3:
+        return -10_000.0
+    if next_abn == 0 and not _on_treatment_from_obs(next_arr):
+        return 10_000.0
+
     reward = 0.0
-    if act.soc != current_soc:
+
+    # 2. Vitals-change feedback.
+    prev_abn = _num_abnormal_from_obs(prev_arr)
+    reward += (prev_abn - next_abn) * 100.0
+
+    # 3. SOC change penalties.
+    prev_soc = int(prev_arr[_SOC_IDX])
+    next_soc = int(next_arr[_SOC_IDX])
+    change_in_soc = next_soc - prev_soc
+
+    if change_in_soc > 0 and next_abn == 0:
+        reward -= 200.0 * change_in_soc
+    # MDP.calculateReward uses ``change_in_soc < 1`` (i.e. <=0, no escalation).
+    if change_in_soc < 1 and next_abn >= 2 and next_soc < State.NUM_SOC - 1:
+        soc_gap = (State.NUM_SOC - 1) - next_soc
+        reward -= 100.0 * soc_gap
+    if change_in_soc != 0:
         reward -= 50.0
+
+    # 4. Treatment costs.
     if act.antibiotic == 1:
         reward -= 10.0
     if act.ventilation == 1:
         reward -= 60.0
     if act.vasopressors == 1:
         reward -= 40.0
+
     return reward
 
 
@@ -323,7 +413,7 @@ class OuterLoopTrainer:
             model_cfg=self.model_cfg,
             pi_v_cfg=self.pi_v_cfg,
             mcts_cfg=self.mcts_cfg,
-            env_reward_fn=_env_reward_fn,
+            env_full_reward_fn=_env_full_reward_fn,
             env_done_fn=_env_done_fn,
             seed=self.cfg.seed,
             device=self.device,

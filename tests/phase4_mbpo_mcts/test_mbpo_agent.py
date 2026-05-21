@@ -23,7 +23,7 @@ def _make_agent(no_mcts: bool = False, n_simulations: int = 10, seed: int = 0) -
         model_cfg=EnsembleModelConfig(n_members=2, hidden_dim=16),
         pi_v_cfg=PiVNetConfig(hidden_dim=16),
         mcts_cfg=MCTSConfig(n_simulations=n_simulations),
-        env_reward_fn=lambda obs, a: 0.0,
+        env_full_reward_fn=lambda prev, a, nxt: 0.0,
         env_done_fn=lambda obs: False,
         seed=seed,
         device="cpu",
