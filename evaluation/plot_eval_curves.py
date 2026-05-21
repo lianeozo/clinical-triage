@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import math
 from pathlib import Path
 from typing import Any
 
@@ -40,6 +41,7 @@ RUNS = [
 
 
 METRIC_SPECS = {
+    # Core checkpoint metrics
     "avg_return": {
         "source": "reward_mean",
         "title": "Eval Reward (raw) vs env-steps",
@@ -58,6 +60,12 @@ METRIC_SPECS = {
         "ylabel": "Discharge Rate",
         "filename": "discharge_rate.png",
     },
+    "timeout_rate": {
+        "source": "timeout_rate",
+        "title": "Timeout Rate vs env-steps",
+        "ylabel": "Timeout Rate",
+        "filename": "timeout_rate.png",
+    },
     "avg_episode_length": {
         "source": "ep_length_mean",
         "title": "Mean Episode Length vs env-steps",
@@ -69,6 +77,46 @@ METRIC_SPECS = {
         "title": "Infeasible Action Rate vs env-steps",
         "ylabel": "Clamp Rate",
         "filename": "infeasible_action_rate.png",
+    },
+
+    # SOC dwell fractions
+    "async_rate": {
+        "source": "async_rate",
+        "title": "Async Dwell Fraction vs env-steps",
+        "ylabel": "Async Dwell Fraction",
+        "filename": "async_rate.png",
+    },
+    "ambulatory_rate": {
+        "source": "ambulatory_rate",
+        "title": "Ambulatory Dwell Fraction vs env-steps",
+        "ylabel": "Ambulatory Dwell Fraction",
+        "filename": "ambulatory_rate.png",
+    },
+    "facility_rate": {
+        "source": "facility_rate",
+        "title": "Facility Dwell Fraction vs env-steps",
+        "ylabel": "Facility Dwell Fraction",
+        "filename": "facility_rate.png",
+    },
+    "icu_rate": {
+        "source": "icu_rate",
+        "title": "ICU Dwell Fraction vs env-steps",
+        "ylabel": "ICU Dwell Fraction",
+        "filename": "icu_rate.png",
+    },
+
+    # Action histogram diagnostics
+    "action_entropy": {
+        "source": "action_entropy",
+        "title": "Action Entropy vs env-steps",
+        "ylabel": "Action Entropy",
+        "filename": "action_entropy.png",
+    },
+    "top_action_fraction": {
+        "source": "top_action_fraction",
+        "title": "Top Action Fraction vs env-steps",
+        "ylabel": "Top Action Fraction",
+        "filename": "top_action_fraction.png",
     },
 }
 
@@ -92,9 +140,97 @@ def infer_seed(seed_dir: Path) -> int | None:
     return None
 
 
-def load_eval_rows() -> pd.DataFrame:
-    all_rows = []
-    baseline_rows = []
+def get_soc_rates(row: dict[str, Any]) -> dict[str, float | None]:
+    soc = row.get("soc_dwell_fractions")
+
+    if not isinstance(soc, list) or len(soc) < 4:
+        return {
+            "async_rate": None,
+            "ambulatory_rate": None,
+            "facility_rate": None,
+            "icu_rate": None,
+        }
+
+    return {
+        "async_rate": soc[0],
+        "ambulatory_rate": soc[1],
+        "facility_rate": soc[2],
+        "icu_rate": soc[3],
+    }
+
+
+def action_hist_stats(row: dict[str, Any]) -> dict[str, float | None]:
+    """
+    Compute action distribution diagnostics from action_hist.
+
+    action_entropy:
+        Higher = more diverse action usage.
+    top_action_fraction:
+        Fraction of all actions assigned to the most frequent action.
+        Higher = more action concentration / possible action collapse.
+    """
+    hist = row.get("action_hist")
+
+    if not isinstance(hist, list) or len(hist) == 0:
+        return {
+            "action_entropy": None,
+            "top_action_fraction": None,
+        }
+
+    total = sum(hist)
+    if total <= 0:
+        return {
+            "action_entropy": None,
+            "top_action_fraction": None,
+        }
+
+    probs = [count / total for count in hist if count > 0]
+    entropy = -sum(p * math.log(p) for p in probs)
+    top_frac = max(hist) / total
+
+    return {
+        "action_entropy": entropy,
+        "top_action_fraction": top_frac,
+    }
+
+
+def flatten_eval_row(
+    row: dict[str, Any],
+    run: dict[str, str],
+    seed: int | None,
+    eval_idx: int | None,
+) -> dict[str, Any]:
+    soc_rates = get_soc_rates(row)
+    action_stats = action_hist_stats(row)
+
+    return {
+        "run_name": run["run_name"],
+        "algo": run["algo"],
+        "reward_version": run["reward_version"],
+        "seed": seed,
+        "eval_idx": eval_idx,
+        "step": row.get("step"),
+        "eval_policy": row.get("algo"),
+
+        # Original checkpoint fields
+        "reward_mean": row.get("reward_mean"),
+        "reward_std": row.get("reward_std"),
+        "mortality_rate": row.get("mortality_rate"),
+        "discharge_rate": row.get("discharge_rate"),
+        "timeout_rate": row.get("timeout_rate"),
+        "ep_length_mean": row.get("ep_length_mean"),
+        "clamp_rate": row.get("clamp_rate"),
+        "n_episodes": row.get("n_episodes"),
+
+        # Derived checkpoint-level diagnostics
+        **soc_rates,
+        **action_stats,
+    }
+
+
+def load_eval_rows() -> tuple[pd.DataFrame, pd.DataFrame]:
+    learned_rows_all = []
+    baseline_rows_all = []
 
     for run in RUNS:
         run_path = Path(run["path"])
@@ -119,47 +255,31 @@ def load_eval_rows() -> pd.DataFrame:
             # Learned policy rows only, e.g. dqn folder keeps only algo == dqn.
             learned_rows = [row for row in rows if row.get("algo") == run["algo"]]
 
+            # Important: align across seeds by eval_idx, not exact env step.
+            for eval_idx, row in enumerate(learned_rows):
+                learned_rows_all.append(
+                    flatten_eval_row(
+                        row=row,
+                        run=run,
+                        seed=seed,
+                        eval_idx=eval_idx,
+                    )
+                )
+
             # Baselines, usually only step 0.
             for row in rows:
                 if row.get("algo") in {"random", "noop"}:
-                    baseline_rows.append(
-                        {
-                            "run_name": run["run_name"],
-                            "algo": run["algo"],
-                            "reward_version": run["reward_version"],
-                            "seed": seed,
-                            "step": row.get("step"),
-                            "eval_policy": row.get("algo"),
-                            "reward_mean": row.get("reward_mean"),
-                            "mortality_rate": row.get("mortality_rate"),
-                            "discharge_rate": row.get("discharge_rate"),
-                            "ep_length_mean": row.get("ep_length_mean"),
-                            "clamp_rate": row.get("clamp_rate"),
-                        }
+                    baseline_rows_all.append(
+                        flatten_eval_row(
+                            row=row,
+                            run=run,
+                            seed=seed,
+                            eval_idx=None,
+                        )
                     )
 
-            # Important: align across seeds by eval_idx, not exact env step.
-            # PPO/SAC steps may be 25069, 25063, 25144, etc., so exact step grouping is wrong.
-            for eval_idx, row in enumerate(learned_rows):
-                all_rows.append(
-                    {
-                        "run_name": run["run_name"],
-                        "algo": run["algo"],
-                        "reward_version": run["reward_version"],
-                        "seed": seed,
-                        "eval_idx": eval_idx,
-                        "step": row.get("step"),
-                        "eval_policy": row.get("algo"),
-                        "reward_mean": row.get("reward_mean"),
-                        "mortality_rate": row.get("mortality_rate"),
-                        "discharge_rate": row.get("discharge_rate"),
-                        "ep_length_mean": row.get("ep_length_mean"),
-                        "clamp_rate": row.get("clamp_rate"),
-                    }
-                )
-
-    learned_df = pd.DataFrame(all_rows)
-    baseline_df = pd.DataFrame(baseline_rows)
+    learned_df = pd.DataFrame(learned_rows_all)
+    baseline_df = pd.DataFrame(baseline_rows_all)
 
     if learned_df.empty:
         raise RuntimeError("No learned eval rows loaded. Check RUNS paths and algo names.")
@@ -176,6 +296,10 @@ def plot_metric(
     spec = METRIC_SPECS[metric_key]
     source_col = spec["source"]
 
+    if source_col not in learned_df.columns:
+        print(f"[WARN] Skipping {metric_key}: missing column {source_col}")
+        return
+
     plt.figure(figsize=(11, 6))
 
     for algo, group in learned_df.groupby("algo"):
@@ -191,6 +315,11 @@ def plot_metric(
             .sort_values("eval_idx")
         )
 
+        # Drop rows where this metric is missing.
+        summary = summary.dropna(subset=["mean"])
+        if summary.empty:
+            continue
+
         x = summary["step_mean"].to_numpy()
         mean = summary["mean"].to_numpy()
         std = summary["std"].fillna(0.0).to_numpy()
@@ -202,11 +331,10 @@ def plot_metric(
         plt.fill_between(x, mean - std, mean + std, alpha=0.18)
 
     # Baseline horizontal lines.
-    # They are averaged across all seed_*/runs for the same reward setting.
-    if not baseline_df.empty:
+    if not baseline_df.empty and source_col in baseline_df.columns:
         for baseline in ["random", "noop"]:
             base = baseline_df[baseline_df["eval_policy"] == baseline]
-            if not base.empty and source_col in base:
+            if not base.empty:
                 y = base[source_col].dropna().mean()
                 if pd.notna(y):
                     plt.axhline(y, linestyle="--", linewidth=1.5, label=baseline)
@@ -248,7 +376,6 @@ def main() -> None:
     print(f"Wrote: {learned_csv}")
     print(f"Wrote: {baseline_csv}")
 
-    # Quick sanity check: should show 5 seeds for each algo.
     print("\nLoaded learned eval rows:")
     print(
         learned_df.groupby(["algo"])["seed"]

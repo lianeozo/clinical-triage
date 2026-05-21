@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import math
 from pathlib import Path
 from typing import Any
 
@@ -76,7 +77,33 @@ def get_soc_rates(row: dict[str, Any]) -> dict[str, float | None]:
     }
 
 
-def flatten_row(
+def action_hist_stats(row: dict[str, Any]) -> dict[str, float | None]:
+    hist = row.get("action_hist")
+
+    if not isinstance(hist, list) or len(hist) == 0:
+        return {
+            "action_entropy": None,
+            "top_action_fraction": None,
+        }
+
+    total = sum(hist)
+    if total <= 0:
+        return {
+            "action_entropy": None,
+            "top_action_fraction": None,
+        }
+
+    probs = [count / total for count in hist if count > 0]
+    entropy = -sum(p * math.log(p) for p in probs)
+    top_frac = max(hist) / total
+
+    return {
+        "action_entropy": entropy,
+        "top_action_fraction": top_frac,
+    }
+
+
+def flatten_eval_row(
     row: dict[str, Any],
     run: dict[str, str],
     seed: int | None,
@@ -84,6 +111,7 @@ def flatten_row(
     seed_dir: Path,
 ) -> dict[str, Any]:
     soc_rates = get_soc_rates(row)
+    action_stats = action_hist_stats(row)
 
     return {
         "run_name": run["run_name"],
@@ -94,7 +122,7 @@ def flatten_row(
         "step": row.get("step"),
         "eval_policy": row.get("algo"),
 
-        # Rename checkpoint fields into report-friendly names.
+        # Report-friendly metric names
         "avg_return": row.get("reward_mean"),
         "reward_std": row.get("reward_std"),
         "mortality_rate": row.get("mortality_rate"),
@@ -104,10 +132,13 @@ def flatten_row(
         "avg_episode_length": row.get("ep_length_mean"),
         "n_episodes": row.get("n_episodes"),
 
-        # SOC dwell fractions.
+        # SOC dwell fractions
         **soc_rates,
 
-        # Debugging source.
+        # Action-distribution diagnostics
+        **action_stats,
+
+        # Debugging source
         "source_path": str(seed_dir),
     }
 
@@ -135,13 +166,13 @@ def load_eval_rows(include_baselines: bool = True) -> pd.DataFrame:
             seed = infer_seed(seed_dir)
             rows = read_jsonl(eval_path)
 
-            # Learned rows: only keep the policy matching this run's algo.
+            # Learned policy rows only, e.g. dqn folder keeps only algo == dqn.
             learned_rows = [row for row in rows if row.get("algo") == run["algo"]]
 
-            # Align by eval_idx, not exact step.
+            # Align learned-policy rows by eval_idx, not exact env step.
             for eval_idx, row in enumerate(learned_rows):
                 flat_rows.append(
-                    flatten_row(
+                    flatten_eval_row(
                         row=row,
                         run=run,
                         seed=seed,
@@ -150,12 +181,12 @@ def load_eval_rows(include_baselines: bool = True) -> pd.DataFrame:
                     )
                 )
 
-            # Optional baselines: random/noop usually exist once at step 0.
+            # Optional random/noop baselines.
             if include_baselines:
                 for row in rows:
                     if row.get("algo") in {"random", "noop"}:
                         flat_rows.append(
-                            flatten_row(
+                            flatten_eval_row(
                                 row=row,
                                 run=run,
                                 seed=seed,
@@ -200,6 +231,8 @@ def make_final_summary(final_df: pd.DataFrame) -> pd.DataFrame:
         "ambulatory_rate",
         "facility_rate",
         "icu_rate",
+        "action_entropy",
+        "top_action_fraction",
     ]
 
     summary_rows = []
@@ -247,14 +280,16 @@ def main() -> None:
         na_position="last",
     )
 
+    # 1. Full checkpoint-level timeseries.
     timeseries_out = out_dir / "eval_timeseries.csv"
     df.to_csv(timeseries_out, index=False)
 
-    # Learned policy final checkpoint only.
+    # 2. Final checkpoint per seed, learned policy only.
     final_by_seed = make_final_by_seed(df, learned_only=True)
     final_by_seed_out = out_dir / "eval_final_by_seed.csv"
     final_by_seed.to_csv(final_by_seed_out, index=False)
 
+    # 3. Across-seed final summary, learned policy only.
     final_summary = make_final_summary(final_by_seed)
     final_summary_out = out_dir / "eval_final_summary.csv"
     final_summary.to_csv(final_summary_out, index=False)
@@ -272,10 +307,15 @@ def main() -> None:
         "avg_return_mean",
         "mortality_rate_mean",
         "discharge_rate_mean",
+        "timeout_rate_mean",
         "infeasible_action_rate_mean",
         "avg_episode_length_mean",
+        "async_rate_mean",
+        "ambulatory_rate_mean",
         "facility_rate_mean",
         "icu_rate_mean",
+        "action_entropy_mean",
+        "top_action_fraction_mean",
     ]
     print(final_summary[cols].to_string(index=False))
 
