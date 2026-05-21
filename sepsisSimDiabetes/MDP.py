@@ -404,8 +404,8 @@ class MDP(object):
         # Severity-aware ICU overuse cost
         # ----------------------------------------------------
 
-        if self.state.soc_state == State.ICU:
-            reward -= max(0, 2 - num_abnormal) * 50
+        #if self.state.soc_state == State.ICU:
+        #    reward -= max(0, 2 - num_abnormal) * 50
 
         # ----------------------------------------------------
         # SOC resource cost
@@ -427,11 +427,11 @@ class MDP(object):
         # ----------------------------------------------------
 
         if action.antibiotic == 1:
-            reward -= 10#60
+            reward -= 60
         if action.ventilation == 1:
-            reward -= 60#120
+            reward -= 120
         if action.vasopressors == 1:
-            reward -= 40#80
+            reward -= 80
 
         return reward
 
