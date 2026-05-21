@@ -5,8 +5,8 @@ class Action(object):
 
     NUM_PER_ACTION = np.array([
         State.NUM_ANTIB,
-        State.NUM_VASO,
         State.NUM_VENT,
+        State.NUM_VASO,
         State.NUM_SOC
     ], dtype=int)
 
@@ -16,6 +16,13 @@ class Action(object):
     VASO_STRING = "vasopressors"
     SOC_STRING = "soc"
     ACTION_VEC_SIZE = 4
+
+    PER_ACTION_LABELS = (
+        ANTIBIOTIC_STRING,
+        VENT_STRING,
+        VASO_STRING,
+        SOC_STRING,
+    )
 
     def __init__(self, selected_actions = None, action_idx = None):
         assert (selected_actions is not None and action_idx is None) \
@@ -74,14 +81,19 @@ class Action(object):
         return self.get_action_idx()
 
     def get_selected_actions(self):
-        selected_actions = set()
+        """Return a dict suitable for round-trip via __init__(selected_actions=...).
+
+        Includes all four components: presence flags for the three binary
+        treatments (only present when on) plus an explicit SOC key.
+        """
+        out = {Action.SOC_STRING: int(self.soc)}
         if self.antibiotic == 1:
-            selected_actions.add(Action.ANTIBIOTIC_STRING)
+            out[Action.ANTIBIOTIC_STRING] = 1
         if self.ventilation == 1:
-            selected_actions.add(Action.VENT_STRING)
+            out[Action.VENT_STRING] = 1
         if self.vasopressors == 1:
-            selected_actions.add(Action.VASO_STRING)
-        return selected_actions
+            out[Action.VASO_STRING] = 1
+        return out
 
     def get_abbrev_string(self):
         '''
