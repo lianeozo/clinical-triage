@@ -22,6 +22,7 @@ _LEARNING_COLS = [
     "reward_mean", "reward_std",
     "mortality_rate", "discharge_rate", "timeout_rate",
     "ep_length_mean", "clamp_rate",
+    "outer_iter",
 ]
 
 # Keys in action_hist_by_soc_x_abnormal look like "soc_<i>_abn_<j>".
@@ -66,6 +67,7 @@ def _aggregate_one_seed(run_id: str, seed: int, seed_dir: Path) -> tuple[list[di
                 "timeout_rate": float(rec["timeout_rate"]),
                 "ep_length_mean": float(rec["ep_length_mean"]),
                 "clamp_rate": float(rec["clamp_rate"]),
+                "outer_iter": rec.get("outer_iter"),  # None for Phases 1-3; populated for Phase 4
             }
             lc_rows.append(lc_row)
 

@@ -20,7 +20,9 @@ _METRICS = [
 ]
 
 _ALGO_ORDER = ["dqn", "ppo", "sac", "sac_kl_f", "sac_kl_ppo",
-               "iql", "iql_kl_f", "random", "noop"]
+               "iql", "iql_kl_f",
+               "mbpo_mcts_main", "mbpo_mcts_no_mcts",
+               "random", "noop"]
 _ALGO_COLORS = {
     "dqn":    "#1f77b4",
     "ppo":    "#d62728",
@@ -29,6 +31,10 @@ _ALGO_COLORS = {
     "sac_kl_ppo": "#17becf",
     "iql":    "#8c564b",
     "iql_kl_f": "#e377c2",
+    # Note: plot_learning_curves_part4 uses #17becf for main; that clashes with
+    # sac_kl_ppo in this combined bar chart, so we substitute a darker teal.
+    "mbpo_mcts_main":    "#117a87",  # dark teal
+    "mbpo_mcts_no_mcts": "#bcbd22",  # olive
     "random": "#7f7f7f",
     "noop":   "#9467bd",
 }
