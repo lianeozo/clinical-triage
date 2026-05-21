@@ -117,3 +117,49 @@ class OfflineConfig:
     eval_cadence: int = 25_000
     n_eval_episodes: int = 50
     internals_log_every: int = 1000
+
+
+@dataclass
+class EnsembleModelConfig:
+    n_members: int = 5
+    hidden_dim: int = 128
+    n_layers: int = 1
+    lr: float = 1e-3
+    weight_decay: float = 1e-4
+
+
+@dataclass
+class PiVNetConfig:
+    hidden_dim: int = 128
+    n_layers: int = 1
+    lr: float = 1e-4
+    weight_decay: float = 1e-4
+
+
+@dataclass
+class MCTSConfig:
+    n_simulations: int = 200
+    c_puct: float = 1.5
+    dirichlet_alpha: float = 0.3
+    dirichlet_eps: float = 0.25
+    gamma: float = 0.99
+    temperature_steps: int = 15
+    temperature_initial: float = 1.0
+    temperature_final: float = 0.0
+
+
+@dataclass
+class OuterLoopConfig:
+    seed_dataset_path: Path
+    out_dir: Path
+    n_outer_iters: int = 15
+    n_episodes_per_iter: int = 30
+    n_model_steps_per_iter: int = 500
+    n_pv_steps_per_iter: int = 500
+    batch_size: int = 256
+    segment_len: int = 8
+    seed: int = 0
+    eval_cadence_iters: int = 1
+    n_eval_episodes: int = 50
+    reward_scale: float = 1e-4
+    internals_log_every: int = 1  # every outer iter
