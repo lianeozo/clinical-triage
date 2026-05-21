@@ -30,6 +30,9 @@ class OfflineTrainer:
         self.evaluator.set_eval_pool(pool)
         self.evaluator.evaluate_references_once()
 
+        aggs0 = self.evaluator.evaluate(self.agent, step=0, algo_name=self.algo_name)
+        self.logger.log_checkpoint(0, aggs0)
+
         data_np = np.load(self.cfg.dataset_path)
         n_total = len(data_np['action'])
         if n_total == 0:
