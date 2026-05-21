@@ -2,3 +2,5 @@
 *.ipynb_checkpoints*
 notes.md
 *.pkl*
+sample_runs/
+outputs/
