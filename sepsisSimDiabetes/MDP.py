@@ -410,14 +410,14 @@ class MDP(object):
         # ----------------------------------------------------
         # SOC resource cost
         # ----------------------------------------------------
-        #if self.state.soc_state == State.ASYNC:
-         #   reward -= 0
-        #elif self.state.soc_state == State.AMBULATORY:
-        #    reward -= 5
-        #elif self.state.soc_state == State.FACILITY:
-         #   reward -= 20
-        #elif self.state.soc_state == State.ICU:
-         #   reward -= 50
+        if self.state.soc_state == State.ASYNC:
+            reward -= 0
+        elif self.state.soc_state == State.AMBULATORY:
+            reward -= 5
+        elif self.state.soc_state == State.FACILITY:
+            reward -= 20
+        elif self.state.soc_state == State.ICU:
+            reward -= 50
 
 
         
