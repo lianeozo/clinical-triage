@@ -366,11 +366,11 @@ class MDP(object):
 
         # Penalize death
         if num_abnormal >= 3:
-            reward -= 1_000
+            reward -= 10_000
             return reward
         # Reward on discharge
         elif num_abnormal == 0 and not self.state.on_treatment():
-            reward += 1_000
+            reward += 10_000
             return reward
 
 
