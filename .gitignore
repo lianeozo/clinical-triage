@@ -2,3 +2,21 @@
 *.ipynb_checkpoints*
 notes.md
 *.pkl*
+
+# Local-only Claude / superpowers artifacts
+docs/superpowers/
+.claude/
+
+# Results convention:
+#   results/<phase>/aggregated/*, results/<phase>/figures/*, and
+#   results/<phase>/_modal_pull/**/seed_*/eval_checkpoints.jsonl ARE pushed.
+#   Findings docs, model checkpoints, eval trajectories, and per-seed
+#   diagnostics stay local.
+results/local_artifacts/
+results/checkpoints/
+results/**/checkpoints/
+results/**/eval_trajectories/
+results/**/training_internals.jsonl
+results/**/config.json
+results/**/eval_pool.json
+
