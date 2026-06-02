@@ -33,6 +33,7 @@ def run_one(
     branch: str = "saimai",
     dataset_path: str = "/results/offline_dataset.npz",
     tag: str = "reward0",
+    total_grad_steps: int = 0,
 ) -> str:
     """One Modal container = one (algo, seed) offline-IQL training run."""
     import subprocess
@@ -52,6 +53,8 @@ def run_one(
 
     if algo in ("iql", "iql_kl_f"):
         args += ["--dataset-path", dataset_path]
+    if total_grad_steps > 0:
+        args += ["--total-grad-steps", str(total_grad_steps)]
 
     subprocess.run(args, cwd="/app", check=True)
     volume.commit()
@@ -65,6 +68,7 @@ def main(
     branch: str = "saimai",
     dataset_path: str = "/results/offline_dataset.npz",
     tag: str = "reward0",
+    total_grad_steps: int = 0,
 ) -> None:
     from phase3_iql.presets import PRESETS
 
@@ -73,10 +77,11 @@ def main(
         raise SystemExit("no algos specified")
 
     seeds = PRESETS[preset]["seeds"]
-    jobs = [(a, s, preset, branch, dataset_path, tag) for a in algo_list for s in seeds]
+    jobs = [(a, s, preset, branch, dataset_path, tag, total_grad_steps)
+            for a in algo_list for s in seeds]
 
     print(f"launching {len(jobs)} containers (max_containers=10): "
-          f"{[(a, s, tag) for a, s, _, _, _, tag in jobs]}")
+          f"{[(a, s, tag) for a, s, _, _, _, tag, _ in jobs]}")
 
     results = list(run_one.starmap(jobs))
 
