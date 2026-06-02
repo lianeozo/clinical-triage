@@ -126,6 +126,9 @@ class MDP(object):
         self.policy_array = policy_array
         self.policy_idx_type = policy_idx_type  # Used for mapping the policy to actions
 
+        # Reward variant selector; canonical default is the original reward0.
+        self.reward_version = "reward0"
+
     def get_new_state(self, state_idx = None, idx_type = 'obs', diabetic_idx = None):
         '''
         use to start MDP over.  A few options:
@@ -356,84 +359,17 @@ class MDP(object):
                     self.state.glucose_state = min(4, self.state.glucose_state + 1)
 
     def calculateReward(self, self_state, action):
-        reward = 0
-        num_abnormal = self.state.get_num_abnormal()
-        prev_abnormal = self_state.get_num_abnormal()
-
-        #----------------------------------------------------
-        # Absorbing States
-        # ----------------------------------------------------
-
-        # Penalize death
-        if num_abnormal >= 3:
-            reward -= 10_000
-            return reward
-        # Reward on discharge
-        elif num_abnormal == 0 and not self.state.on_treatment():
-            reward += 10_000
-            return reward
-
-
-        # ----------------------------------------------------
-        # Feedback from patient vital sign trajectory
-        # ----------------------------------------------------
-
-        change_in_abnormal = prev_abnormal - num_abnormal
-        reward += change_in_abnormal * 100 # reward +100/-100 (weighted) for improvement/decline
-
-        # ----------------------------------------------------
-        # Escalation + descalation cost
-        # ----------------------------------------------------
-
-        change_in_soc = self.state.soc_state - self_state.soc_state
-
-        # Penalize unnecessary escalation
-        if change_in_soc > 0 and num_abnormal == 0:
-            reward -= 200 * change_in_soc
-
-        if change_in_soc < 1 and num_abnormal >= 2 and self.state.soc_state < State.NUM_SOC - 1:
-            soc_gap = (State.NUM_SOC - 1) - self.state.soc_state
-            reward -= 100 * soc_gap
-
-        if change_in_soc != 0:
-            reward -= 50
-
-
-
-        # ----------------------------------------------------
-        # Severity-aware ICU overuse cost
-        # ----------------------------------------------------
-
-        #if self.state.soc_state == State.ICU:
-        #    reward -= max(0, 2 - num_abnormal) * 50
-
-        # ----------------------------------------------------
-        # SOC resource cost
-        # ----------------------------------------------------
-        if self.state.soc_state == State.ASYNC:
-            reward -= 0
-        elif self.state.soc_state == State.AMBULATORY:
-            reward -= 5
-        elif self.state.soc_state == State.FACILITY:
-            reward -= 20
-        elif self.state.soc_state == State.ICU:
-            reward -= 50
-
-
-        
-
-        # ----------------------------------------------------
-        # Treatment Cost
-        # ----------------------------------------------------
-
-        if action.antibiotic == 1:
-            reward -= 10
-        if action.ventilation == 1:
-            reward -= 60
-        if action.vasopressors == 1:
-            reward -= 40
-
-        return reward
+        # Delegate to the single source of truth for the reward variants.
+        # self_state is the PRE-transition state; self.state is POST-transition.
+        # Pass TRUE (unmasked) state vectors so env reward == reward0 exactly.
+        from .reward_variants import compute_reward
+        version = getattr(self, "reward_version", "reward0")
+        return compute_reward(
+            self_state.get_state_vector(),
+            action.get_action_idx(),
+            self.state.get_state_vector(),
+            version,
+        )
 
     def transition(self, action):
         self.state = self.state.copy_state()
