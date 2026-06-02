@@ -2,7 +2,6 @@ import numpy as np
 from .State import State
 
 class Action(object):
-
     NUM_PER_ACTION = np.array([
         State.NUM_ANTIB,
         State.NUM_VENT,
@@ -27,21 +26,12 @@ class Action(object):
     def __init__(self, selected_actions = None, action_idx = None):
         assert (selected_actions is not None and action_idx is None) \
             or (selected_actions is None and action_idx is not None), \
-            "must specify either set of action strings or action index"
+            "must specify either selected_actions dict or action index"
         if selected_actions is not None:
-            if Action.ANTIBIOTIC_STRING in selected_actions:
-                self.antibiotic = 1
-            else:
-                self.antibiotic = 0
-            if Action.VENT_STRING in selected_actions:
-                self.ventilation = 1
-            else:
-                self.ventilation = 0
-            if Action.VASO_STRING in selected_actions:
-                self.vasopressors = 1
-            else:
-                self.vasopressors = 0
-            self.soc = selected_actions.get(Action.SOC_STRING, 0)
+            self.antibiotic = int(selected_actions.get(Action.ANTIBIOTIC_STRING, 0))
+            self.ventilation = int(selected_actions.get(Action.VENT_STRING, 0))
+            self.vasopressors = int(selected_actions.get(Action.VASO_STRING, 0))
+            self.soc = int(selected_actions.get(Action.SOC_STRING, 0))
 
         else:
             mod_idx = action_idx
@@ -83,17 +73,16 @@ class Action(object):
     def get_selected_actions(self):
         """Return a dict suitable for round-trip via __init__(selected_actions=...).
 
-        Includes all four components: presence flags for the three binary
-        treatments (only present when on) plus an explicit SOC key.
+        All four components are included with explicit integer values, so the
+        round-trip Action(selected_actions=a.get_selected_actions()) preserves
+        every field (including SOC).
         """
-        out = {Action.SOC_STRING: int(self.soc)}
-        if self.antibiotic == 1:
-            out[Action.ANTIBIOTIC_STRING] = 1
-        if self.ventilation == 1:
-            out[Action.VENT_STRING] = 1
-        if self.vasopressors == 1:
-            out[Action.VASO_STRING] = 1
-        return out
+        return {
+            Action.ANTIBIOTIC_STRING: self.antibiotic,
+            Action.VENT_STRING: self.ventilation,
+            Action.VASO_STRING: self.vasopressors,
+            Action.SOC_STRING: self.soc,
+        }
 
     def get_abbrev_string(self):
         '''

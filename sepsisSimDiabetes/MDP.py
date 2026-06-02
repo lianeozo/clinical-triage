@@ -398,6 +398,30 @@ class MDP(object):
         if change_in_soc != 0:
             reward -= 50
 
+
+
+        # ----------------------------------------------------
+        # Severity-aware ICU overuse cost
+        # ----------------------------------------------------
+
+        #if self.state.soc_state == State.ICU:
+        #    reward -= max(0, 2 - num_abnormal) * 50
+
+        # ----------------------------------------------------
+        # SOC resource cost
+        # ----------------------------------------------------
+        if self.state.soc_state == State.ASYNC:
+            reward -= 0
+        elif self.state.soc_state == State.AMBULATORY:
+            reward -= 5
+        elif self.state.soc_state == State.FACILITY:
+            reward -= 20
+        elif self.state.soc_state == State.ICU:
+            reward -= 50
+
+
+        
+
         # ----------------------------------------------------
         # Treatment Cost
         # ----------------------------------------------------

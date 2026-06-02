@@ -3,7 +3,7 @@ from __future__ import annotations
 
 SMOKE = {
     "total_env_steps": 100_000,
-    "seeds": [0, 1, 2],
+    "seeds": [0, 1,2],
     "eval_cadence": 10_000,
     "n_eval_episodes": 50,
 }

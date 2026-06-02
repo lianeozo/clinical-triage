@@ -20,3 +20,10 @@ results/**/training_internals.jsonl
 results/**/config.json
 results/**/eval_pool.json
 
+# Local experiment scratch (from yun)
+sample_runs/
+outputs/
+mdp_backup/
+
+# macOS
+.DS_Store

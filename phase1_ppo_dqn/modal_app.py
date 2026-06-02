@@ -30,32 +30,56 @@ app = modal.App("clinical-triage-phase1", image=image)
 
 
 @app.function(gpu="T4", volumes={"/results": volume}, timeout=60 * 60)
-def run_one(algo: str, seed: int, preset: str = "standard", branch: str = "saimai") -> str:
+def run_one(
+    algo: str,
+    seed: int,
+    preset: str = "standard",
+    branch: str = "saimai",
+    tag: str = "reward0",
+) -> str:
     """One Modal container = one (algo, seed) training run."""
     import subprocess
-    # Fetch latest, detach HEAD directly at origin/<branch>. No local branch maintained.
+
     subprocess.run(["git", "fetch", "origin"], cwd="/app", check=True)
     subprocess.run(["git", "checkout", "--detach", f"origin/{branch}"], cwd="/app", check=True)
+
     subprocess.run([
         "python", "-m", "phase1_ppo_dqn.train",
-        "--algo", algo, "--seed", str(seed),
-        "--preset", preset, "--out-root", "/results",
+        "--algo", algo,
+        "--seed", str(seed),
+        "--preset", preset,
+        "--out-root", "/results",
+        "--tag", tag,
     ], cwd="/app", check=True)
+
     volume.commit()
-    return f"{algo}/seed_{seed} ({preset}) done"
+    return f"{algo}/seed_{seed} ({preset}, {tag}) done"
+
+
+
 
 
 @app.local_entrypoint()
-def main(preset: str = "standard", algos: str = "dqn,ppo", branch: str = "saimai") -> None:
+def main(
+    preset: str = "standard",
+    algos: str = "dqn,ppo",
+    branch: str = "saimai",
+    tag: str = "reward0",
+) -> None:
     """Fan out (#algos × #seeds) containers in parallel."""
     from phase1_ppo_dqn.presets import PRESETS
+
     algo_list = [a.strip() for a in algos.split(",") if a.strip()]
     if not algo_list:
         raise SystemExit("no algos specified")
+
     seeds = PRESETS[preset]["seeds"]
-    jobs = [(a, s, preset, branch) for a in algo_list for s in seeds]
-    print(f"launching {len(jobs)} containers: {[(a, s) for a, s, _, _ in jobs]}")
+    jobs = [(a, s, preset, branch, tag) for a in algo_list for s in seeds]
+
+    print(f"launching {len(jobs)} containers: {[(a, s, tag) for a, s, _, _, tag in jobs]}")
     results = list(run_one.starmap(jobs))
+
     for r in results:
         print(f"  {r}")
+
     print(f"all {len(jobs)} containers done; volume committed")

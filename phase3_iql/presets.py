@@ -9,7 +9,7 @@ SMOKE_IQL = {
 }
 
 STANDARD_IQL = {
-    "total_grad_steps": 200_000,
+    "total_grad_steps": 500_000,
     "seeds": [0, 1, 2, 3, 4],
     "eval_cadence": 25_000,
     "n_eval_episodes": 50,
