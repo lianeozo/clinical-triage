@@ -45,6 +45,12 @@ REWARD_DESC = {
 EVAL_PREFIX = "eval_final_summary_"
 TRAJ_PREFIX = "trajectory_diagnostic_final_summary_"
 
+# IQL offline algos appended as extra rows, sourced from the Step-1 CSV
+# (analysis/iql_variant_points.py) rather than the milestone CSVs.
+IQL_ALGOS = ["iql", "iql_kl_f"]
+IQL_ALGO_PRETTY = {"iql": "IQL", "iql_kl_f": "IQL-KL-F"}
+IQL_CSV_DEFAULT = "results/local_artifacts/iql_variant_points.csv"
+
 
 def _load_metric(csv_path: Path, value_col: str) -> dict[str, float]:
     """Return {algo: value} for ``value_col`` from a summary CSV."""
@@ -78,6 +84,31 @@ def load_all(csv_dir: Path) -> tuple[dict[str, dict[str, float]], dict[str, dict
     return mort, lowicu
 
 
+def load_iql(iql_csv: Path) -> tuple[dict[str, dict[str, float]], dict[str, dict[str, float]]]:
+    """Load IQL mortality/low-ICU keyed by reward variant then algo.
+
+    Mirrors the milestone structure: returns (mort, lowicu) where each is
+    {reward: {algo: value}}, with values as fractions in [0, 1].
+    """
+    mort: dict[str, dict[str, float]] = {rew: {} for rew in ALL_REWARDS}
+    lowicu: dict[str, dict[str, float]] = {rew: {} for rew in ALL_REWARDS}
+    with iql_csv.open(newline="") as fh:
+        for row in csv.DictReader(fh):
+            algo = row.get("algo", "").strip()
+            rew = row.get("reward", "").strip()
+            if algo not in IQL_ALGOS or rew not in ALL_REWARDS:
+                continue
+            try:
+                mort[rew][algo] = float(row["mortality_mean"])
+            except (TypeError, ValueError, KeyError):
+                pass
+            try:
+                lowicu[rew][algo] = float(row["low_abn_icu_mean"])
+            except (TypeError, ValueError, KeyError):
+                pass
+    return mort, lowicu
+
+
 def _fmt_pp(delta: float) -> str:
     """Signed percentage-point string with one decimal; real minus via math mode."""
     pp = delta * 100.0
@@ -107,9 +138,11 @@ def _cell(mort_by_algo, lowicu_by_algo, base_mort, base_lowicu, algo) -> str:
     return f"{mort_str} / {icu_str}"
 
 
-def build_table(mort, lowicu) -> str:
+def build_table(mort, lowicu, iql_mort=None, iql_lowicu=None) -> str:
     base_mort = mort[BASELINE]
     base_lowicu = lowicu[BASELINE]
+    iql_base_mort = iql_mort[BASELINE] if iql_mort else {}
+    iql_base_lowicu = iql_lowicu[BASELINE] if iql_lowicu else {}
 
     lines = []
     lines.append(
@@ -139,6 +172,17 @@ def build_table(mort, lowicu) -> str:
             )
         lines.append(" & ".join(cells) + r" \\")
 
+    # Append IQL offline rows (delta vs each IQL algo's own reward0 baseline).
+    if iql_mort and iql_lowicu:
+        lines.append(r"\midrule")
+        for algo in IQL_ALGOS:
+            cells = [IQL_ALGO_PRETTY[algo]]
+            for rew in REWARD_COLS:
+                cells.append(
+                    _cell(iql_mort[rew], iql_lowicu[rew], iql_base_mort, iql_base_lowicu, algo)
+                )
+            lines.append(" & ".join(cells) + r" \\")
+
     lines.append(r"\bottomrule")
     lines.append(r"\end{tabular}")
     return "\n".join(lines) + "\n"
@@ -148,13 +192,22 @@ def main() -> None:
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--csv-dir", required=True, type=Path)
     ap.add_argument("--out", required=True, type=str)
+    ap.add_argument(
+        "--iql-csv",
+        type=Path,
+        default=Path(__file__).resolve().parent.parent / IQL_CSV_DEFAULT,
+        help="Step-1 IQL variant-points CSV (set to '' to omit IQL rows).",
+    )
     args = ap.parse_args()
 
     csv_dir = args.csv_dir
     out_path = Path(os.path.expanduser(args.out))
 
     mort, lowicu = load_all(csv_dir)
-    table = build_table(mort, lowicu)
+    iql_mort = iql_lowicu = None
+    if args.iql_csv and str(args.iql_csv) and Path(args.iql_csv).is_file():
+        iql_mort, iql_lowicu = load_iql(Path(args.iql_csv))
+    table = build_table(mort, lowicu, iql_mort, iql_lowicu)
 
     out_path.parent.mkdir(parents=True, exist_ok=True)
     out_path.write_text(table)
