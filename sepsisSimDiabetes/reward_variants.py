@@ -51,26 +51,14 @@ def _decode_action(action_idx: int):
     return int(antib), int(vent), int(vaso), int(soc)
 
 
-def compute_reward(prev_obs, action_idx: int, next_obs, version: str = "reward0") -> float:
-    p = REWARD_VARIANTS[version]
-    prev_obs = np.asarray(prev_obs)
-    next_obs = np.asarray(next_obs)
-    n_next = num_abnormal(next_obs)
-    n_prev = num_abnormal(prev_obs)
-
-    # Absorbing states (terminal returns early, like the original).
-    if n_next >= 3:
-        return float(-p["T"])
-    if n_next == 0 and not on_treatment(next_obs):
-        return float(p["T"])
-
+def _shaping_and_costs(n_prev: int, n_next: int, prev_soc: int, next_soc: int,
+                       action_idx: int, p: dict) -> float:
+    """Non-terminal shaping + costs, shared by the obs- and count-based entry points."""
     reward = 0.0
     # Vitals trajectory feedback.
     reward += 100.0 * (n_prev - n_next)
 
     # Escalation / de-escalation cost.
-    next_soc = int(next_obs[7])
-    prev_soc = int(prev_obs[7])
     change_in_soc = next_soc - prev_soc
     if change_in_soc > 0 and n_next == 0:
         reward -= 200.0 * change_in_soc
@@ -96,3 +84,39 @@ def compute_reward(prev_obs, action_idx: int, next_obs, version: str = "reward0"
     if vaso == 1:  reward -= c_vaso
 
     return float(reward)
+
+
+def compute_reward(prev_obs, action_idx: int, next_obs, version: str = "reward0") -> float:
+    p = REWARD_VARIANTS[version]
+    prev_obs = np.asarray(prev_obs)
+    next_obs = np.asarray(next_obs)
+    n_next = num_abnormal(next_obs)
+    n_prev = num_abnormal(prev_obs)
+
+    # Absorbing states (terminal returns early, like the original).
+    if n_next >= 3:
+        return float(-p["T"])
+    if n_next == 0 and not on_treatment(next_obs):
+        return float(p["T"])
+
+    return _shaping_and_costs(n_prev, n_next, int(prev_obs[7]), int(next_obs[7]),
+                              int(action_idx), p)
+
+
+def compute_reward_from_counts(n_prev: int, n_next: int, prev_soc: int, next_soc: int,
+                               action_idx: int, version: str = "reward0",
+                               terminal_reason: str | None = None) -> float:
+    """Count-driven reward, for reconstructing rewards from trajectory logs where the
+    terminal state's full vector is not stored but true abnormal counts, SOCs, the
+    executed action, and the episode's terminal_reason are.
+
+    Terminal handling uses terminal_reason (death/discharge) for the absorbing reward,
+    plus the n_next>=3 death guard; everything else is the shared shaping/costs path.
+    """
+    p = REWARD_VARIANTS[version]
+    if terminal_reason == "death" or n_next >= 3:
+        return float(-p["T"])
+    if terminal_reason == "discharge":
+        return float(p["T"])
+    return _shaping_and_costs(int(n_prev), int(n_next), int(prev_soc), int(next_soc),
+                              int(action_idx), p)
