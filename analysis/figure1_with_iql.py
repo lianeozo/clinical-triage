@@ -41,18 +41,22 @@ REWARD_COLORS = {
 
 # Row order top -> bottom. matplotlib y increases upward, so the first entry
 # gets the largest y.
-ROW_ORDER = ["sac_kl_ppo", "sac_kl_f", "sac", "ppo", "dqn", "iql", "iql_kl_f"]
+ROW_ORDER = ["heuristic", "sac_kl_ppo", "sac_kl_f", "sac", "factppo", "ppo",
+             "ddqn", "dqn", "iql", "iql_kl_f"]
 ALGO_PRETTY = {
+    "heuristic": "Heuristic",
     "sac_kl_ppo": "SAC-KL-PPO",
     "sac_kl_f": "SAC-KL-F",
     "sac": "SAC",
+    "factppo": "FactPPO",
     "ppo": "PPO",
+    "ddqn": "Double DQN",
     "dqn": "DQN",
     "iql": "IQL",
     "iql_kl_f": "IQL-KL-F",
 }
 
-ONLINE_ALGOS = {"dqn", "ppo", "sac", "sac_kl_f", "sac_kl_ppo"}
+ONLINE_ALGOS = {"dqn", "ddqn", "ppo", "factppo", "sac", "sac_kl_f", "sac_kl_ppo", "heuristic"}
 
 
 def _load_csv(path: Path) -> list[dict]:

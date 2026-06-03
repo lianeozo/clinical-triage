@@ -20,10 +20,13 @@ import os
 from pathlib import Path
 
 # Algorithm order + pretty names for the table rows.
-ALGOS = ["dqn", "ppo", "sac", "sac_kl_f", "sac_kl_ppo"]
+ALGOS = ["heuristic", "dqn", "ddqn", "ppo", "factppo", "sac", "sac_kl_f", "sac_kl_ppo"]
 ALGO_PRETTY = {
+    "heuristic": "Heuristic",
     "dqn": "DQN",
+    "ddqn": "Double DQN",
     "ppo": "PPO",
+    "factppo": "FactPPO",
     "sac": "SAC",
     "sac_kl_f": "SAC-KL-F",
     "sac_kl_ppo": "SAC-KL-PPO",
