@@ -114,7 +114,11 @@ def main() -> None:
     # vertical offsets so the 5 reward points don't overlap within a row.
     offsets = {rew: (i - 2) * 0.14 for i, rew in enumerate(REWARDS)}
 
-    fig, (ax_m, ax_l) = plt.subplots(1, 2, figsize=(13, 5), sharey=True)
+    plt.rcParams.update({
+        "font.size": 9.5, "axes.titlesize": 10, "axes.labelsize": 9.5,
+        "xtick.labelsize": 8, "ytick.labelsize": 8, "legend.fontsize": 8.5,
+    })
+    fig, (ax_m, ax_l) = plt.subplots(1, 2, figsize=(7.4, 4.3), sharey=True)
 
     def plot_panel(ax, mean_idx, std_idx, title, xlabel):
         for rew in REWARDS:
@@ -133,7 +137,6 @@ def main() -> None:
                     elinewidth=1.2, capsize=2.5, markersize=6, label=rew,
                     linestyle="none",
                 )
-        ax.set_title(title)
         ax.set_xlabel(xlabel)
         ax.set_yticks([y_for[a] for a in rows])
         ax.set_yticklabels([ALGO_PRETTY[a] for a in rows])
@@ -154,11 +157,10 @@ def main() -> None:
     fig.legend(handles, labels, loc="upper center", ncol=5, frameon=False,
                bbox_to_anchor=(0.5, 0.06))
 
-    fig.suptitle("Final-checkpoint performance across algorithms and reward variants")
-    fig.tight_layout(rect=(0, 0.08, 1, 0.96))
+    fig.tight_layout(rect=(0, 0.08, 1, 1.0))
 
     OUT_PATH.parent.mkdir(parents=True, exist_ok=True)
-    fig.savefig(OUT_PATH, dpi=150)
+    fig.savefig(OUT_PATH, dpi=200, bbox_inches="tight")
     print(f"wrote {OUT_PATH}")
 
 
