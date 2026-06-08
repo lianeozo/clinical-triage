@@ -66,7 +66,7 @@ def _stacked_bars_for_step(ax, grouped: pd.DataFrame, title: str) -> None:
     ax.set_ylim(0, 1.05)
     ax.set_xticks(socs)
     ax.set_xticklabels(["ASYNC", "AMB", "FAC", "ICU"])
-    ax.set_title(title, fontsize=9)
+    ax.set_title(title, fontsize=10.5)
 
 
 def _plot_one_algo(df: pd.DataFrame, algo: str, out_path: Path) -> None:
@@ -86,13 +86,14 @@ def _plot_one_algo(df: pd.DataFrame, algo: str, out_path: Path) -> None:
             cell = _agg_seed_mean_fractions(
                 df[df["num_abnormal"] == num_abn], algo, step)
             ax = axes[ri][ci]
-            title = f"num_abnormal={num_abn}, step={step}"
+            phase = "untrained" if ci == 0 else "trained"
+            title = f"{num_abn} abnormal vital(s) --- {phase}"
             _stacked_bars_for_step(ax, cell, title)
             if ci == 0:
                 ax.set_ylabel("action fraction")
     # Legend on the top-right panel.
-    axes[0][-1].legend(loc="upper right", fontsize=7, bbox_to_anchor=(1.45, 1.0))
-    fig.suptitle(f"{algo.upper()} action distribution by SOC × num_abnormal_vitals", y=1.00)
+    axes[0][-1].legend(loc="upper right", fontsize=8.5, bbox_to_anchor=(1.42, 1.0))
+    fig.suptitle(f"{algo.upper()} treatment-action distribution by site of care (within each panel)", y=1.00)
     fig.tight_layout()
     out_path.parent.mkdir(parents=True, exist_ok=True)
     fig.savefig(out_path, dpi=120, bbox_inches="tight")
