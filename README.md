@@ -1,120 +1,135 @@
-# Clinical Site-of-Care Triage with a POMDP Extension of the Gumbel-Max SCM Sepsis Simulator
+# Reinforcement Learning for Clinical Site-of-Care Triage in a Sepsis Simulator
 
-> **This repository extends the original Oberst & Sontag (ICML 2019) sepsis simulator into a POMDP framework for sequential site-of-care (SOC) triage decisions.**
-> All modifications and additions beyond the original Oberst & Sontag codebase are the work of Liane Ozoemelam, Kevin Chen, and Tanvi Thoria (Stanford CS234, 2024–25).
+> **Stanford CS224R final project (2026).** Team: Liane Ozoemelam, Saimai Lau, Yun Dong.
+>
+> We study whether reinforcement learning can learn acuity-appropriate **site-of-care (SOC)
+> triage** for sepsis patients — deciding both *where* a patient is treated (asynchronous →
+> ambulatory → facility → ICU) and *how* (antibiotics / ventilation / vasopressors) — under
+> partial observability, and we isolate what limits success: the algorithm, the reward, or the
+> simulator.
 
----
+### Lineage and credit
 
-## Overview of Our Extensions
+This project builds on two prior efforts:
 
-The original simulator models a sepsis patient as a finite MDP: a clinician chooses among 8 treatment combinations (antibiotics / ventilation / vasopressors on or off), patient vitals evolve stochastically, and episodes terminate on discharge (+1) or death (−1). We preserve this core while extending it significantly along four axes.
-
-### 1. Expanded State Space (`State.py`)
-
-The original state encodes only patient vitals and treatment flags. We extend this to a **patient–system state space** that supports site-of-care decisions and resource constraints.
-
-**Original state variables (unchanged):**
-- Vitals bins: `hr_state` (0/1/2), `sysbp_state` (0/1/2), `percoxyg_state` (0/1)
-- Glucose bin: `glucose_state` (0–4)
-- Treatment flags: `antibiotic_state`, `vaso_state`, `vent_state`
-- Hidden type: `diabetic_idx` (0/1)
-
-**Added state variables (our modifications):**
-- `soc_state`: current site of care — one of `{ASYNC, AMBULATORY, H@H, FACILITY, ICU}`
-- Outpatient capacity: `outp_doc_state`, `outp_nurse_state` (4 levels each)
-- Acute care capacity: `acute_doc_state`, `acute_nurse_state`, `acute_bed_state` (4 levels each)
-- ICU capacity: `icu_doc_state`, `icu_nurse_state`, `icu_bed_state` (4 levels each)
-
-Capacity variables evolve via a stochastic random walk that applies one roll per care tier (outpatient, acute, ICU) per timestep, rather than independently per variable, to preserve clinically meaningful within-tier coherence.
+- **Oberst & Sontag (ICML 2019)**, *Counterfactual Off-Policy Evaluation with Gumbel-Max
+  Structural Causal Models* — the original Gumbel-Max SCM sepsis simulator, whose discrete
+  transition dynamics were learned from the MIMIC-III critical-care database. The original
+  README is preserved at the bottom of this file.
+- **"From Acuity to Allocation: Learning Site-of-Care Decisions with RL"** (Kevin Chen, Liane
+  Ozoemelam, Tanvi Thoria; Stanford CS234, 2024–25) — the prior course project that first added
+  site-of-care structure to the simulator. The present CS224R project re-scopes that work around
+  an explicit triage action space and a systematic algorithm × reward study.
 
 ---
 
-### 2. Redefined Action Space (`Action.py`)
+## Overview
 
-**Original:** action = treatment combination (3-bit vector over antibiotics / vent / vasopressors → 8 actions).
+We extend the Gumbel-Max SCM simulator into a **triage-focused POMDP** in which the site of care
+is both a state variable and an action dimension, then run a controlled study across **ten
+algorithms** and **five reward variants** to attribute where the difficulty in learning good
+triage actually lies.
 
-**Our modification:** the agent's primary action is the **next site of care**:
-
-```
-at ∈ A := {ASYNC, AMBULATORY, H@H, FACILITY, ICU}
-```
-
-Treatment interventions are no longer directly chosen by the agent — they are determined by feasibility constraints imposed by the current site of care. For example, vasopressors and invasive ventilation are only available at FACILITY or ICU. This makes the action space 5-dimensional (one per SOC level) while preserving the original treatment transition logic.
-
----
-
-### 3. POMDP Observation Function (`MDP.py`)
-
-The original simulator is fully observable. We implement a **site-of-care-dependent observation function** that partially masks the latent state.
-
-At each timestep, an observation `o_t` is generated as:
-
-```
-o_t = m(c_t) ⊙ x_t
-```
-
-where `m(c_t)` is a binary mask vector whose entries are drawn as:
-
-```
-m_{t,i} ~ Bernoulli(p_i(c_t))
-```
-
-The probability `p_i(c_t)` of observing each vital (`hr`, `sysbp`, `percoxyg`, `glucose`) depends on the current site of care. ICU admits full observability; ASYNC has the highest masking probability. Unobserved features are replaced with a `-1` sentinel in the observation vector passed to the RL agent.
+**Headline finding.** Offline IQL-KL-F is the strongest method (13.6% mortality, 42.4%
+discharge, 0% infeasible actions); offline methods beat online ones; and a lightweight
+feasibility penalty drives infeasible actions to zero. Critically, the *original* reward ranks
+best for nearly every algorithm — reward shaping changes behavior but does not improve outcomes —
+which, together with offline RL's dominance, localizes the bottleneck to the **hand-specified
+simulator dynamics** rather than the algorithm or reward. See the final report for full results.
 
 ---
 
-### 4. Shaped Reward Function (`MDP.py`)
+## Environment (`sepsisSimDiabetes/`)
 
-The original reward function issues ±1 terminal rewards only. We replace this with a shaped reward that reflects both patient outcomes and system resource behavior:
+A POMDP extension of the Gumbel-Max SCM sepsis simulator. The simulator was simplified from the
+prior project (removing Hospital-at-Home, resource-capacity variables, and noninvasive
+ventilation) to a clean triage core.
 
-| Event | Reward |
-|---|---|
-| Death (≥3 abnormal vitals) | −10,000 |
-| Discharge (all vitals normal, no treatment) | +10,000 |
-| SOC escalation | −200 |
-| ≥2 abnormal vitals without SOC escalation | −100 |
-| Antibiotics administered | −10 |
-| Ventilator used | −100 |
-| Vasopressors used | −100 |
-
-The shaping is designed to balance patient survival, appropriate escalation, and resource stewardship. Note: the low penalty on antibiotics (−10) relative to discharge reward (+10,000) leads PPO to exploit antibiotic administration as a low-cost vitals-improvement strategy — a known artifact of this reward design, not a training failure.
-
----
-
-### 5. RL Agents
-
-We train and evaluate three agents on the modified POMDP:
-
-- **DQN** (`dqn.py`): 3-layer MLP, epsilon-greedy exploration with decay, experience replay buffer, Huber loss, soft target network updates (τ = 0.005), reward scaling by 1/10,000. Falls back to `random_select_action()` when greedy action is infeasible.
-- **PPO** (`ppo.py`): Actor-critic with GAE advantage estimation, clipped surrogate objective. Feasibility of the selected action is enforced before environment step.
+- **State** (`State.py`): four discretized vitals (heart rate, systolic BP, oxygen saturation,
+  glucose), three binary treatment flags (antibiotics, vasopressors, ventilation), and the
+  current site of care `{ASYNC, AMBULATORY, FACILITY, ICU}`; a hidden diabetes variable modulates
+  dynamics and is never observed.
+- **Action** (`Action.py`): a joint `(site-of-care × treatments)` choice, giving
+  **32 actions = 4_SOC × 2³_treatment**. Per-SOC **feasibility constraints** determine which
+  treatments are available at each site (intensive interventions are unavailable below the ICU);
+  infeasible action components are clamped at execution.
+- **Partial observability** (`MDP.py`): the observation is a SOC-dependent masked subset of the
+  true state — lower sites of care reveal fewer vitals (masked entries become a `-1` sentinel).
+- **Reward variants** (`reward_variants.py`): a single parameterized reward with five variants
+  (`reward0`–`reward4`); `reward0` is the original baseline (±10,000 terminals + dense shaping).
+  Variants reduce the terminal scale, strengthen treatment penalties, add a severity-aware ICU
+  penalty, or add per-site resource costs. `MDP.calculateReward` delegates here (default
+  `reward0`).
 
 ---
 
-### 6. Trajectory Visualization (`render_trajectories.py`)
+## Algorithms
 
-A rendering utility that steps through a full episode under DQN, PPO, or random policy and prints per-step vitals, SOC, capacity, treatments, reward, and terminal outcome. Capacity display is automatically filtered to the tier relevant to the current SOC.
+The study spans four algorithm families. **Implemented in this repository:**
+
+- **Online** — DQN, PPO (`phase1_ppo_dqn/`); SAC, SAC-KL-F (feasibility penalty), SAC-KL-PPO
+  (KL anchor to a frozen PPO reference) (`phase2_sac/`).
+- **Offline** — IQL, IQL-KL-F (`phase3_iql/`), trained on a mixed dataset assembled from the
+  online policies' trajectories.
+- **Model-based (exploratory)** — MBPO + MCTS planning: a recurrent ensemble dynamics model with
+  PUCT-guided tree search at decision time (`phase4_mbpo_mcts/`).
+- **References** — RandomAgent and NoOpAgent (`triage_rl/agents/`).
+
+The shared **feasibility regularizer** (`L_feas = β·E_s[Σ_{a∉F(s)} π(a|s)]`) is used by SAC-KL-F
+and IQL-KL-F.
+
+> Three additional baselines that appear in the full comparison and the report — a rule-based
+> **Heuristic**, **Double DQN**, and **FactPPO** — were contributed by Liane Ozoemelam; their
+> training code lives in her workspace, while their evaluation outputs are consumed by the
+> plotting scripts in `analysis/`.
 
 ---
 
 ## Repository Structure
 
 ```
-.
-├── sepsisSimDiabetes/
-│   ├── State.py           # Extended state space (modified)
-│   ├── Action.py          # SOC action space (modified)
-│   ├── MDP.py             # POMDP transitions, observation fn, reward (modified)
-│   └── DataGenerator.py   # Trajectory simulation (modified)
-├── dqn.py                 # DQN agent (new)
-├── ppo.py                 # PPO agent (new)
-├── render_trajectories.py # Trajectory visualization (new)
-├── learn_mdp_parameters.ipynb   # Original — learns MDP params from MIMIC-III
-├── plots-main-paper.ipynb       # Original — replicates Oberst & Sontag figures
-└── data/
-    └── diab_txr_mats-replication.zip   # Original learned MDP parameters
+sepsisSimDiabetes/      # the POMDP simulator
+  State.py, Action.py, MDP.py, reward_variants.py, DataGenerator.py
+triage_rl/              # shared harness: config, env wrapper, evaluator, logger,
+  agents/ (base, random, noop), trainers/ (off_policy, on_policy, offline)
+phase1_ppo_dqn/         # DQN, PPO        (agents/, train.py, modal_app.py, presets.py)
+phase2_sac/             # SAC + variants  (agents/, feasibility.py, train.py, modal_app.py)
+phase3_iql/             # IQL + IQL-KL-F  (agents/, dataset.py, reward-variant rebuild, train.py)
+phase4_mbpo_mcts/       # MBPO + MCTS     (agents/, trainers/outer_loop.py, train.py)
+analysis/               # aggregation + report/poster figure generators
+evaluation/             # reward-versioned eval aggregation + trajectory diagnostics
+tests/                  # pytest suite
+results/                # aggregated parquets, figures, eval_checkpoints (see note below)
+data/                   # original learned MDP parameters (Oberst & Sontag)
+pymdptoolbox/, mdptoolboxSrc/   # vendored MDP toolbox (original)
 ```
 
-Files not listed above are from the original Oberst & Sontag repository and are unmodified.
+**Results convention.** Aggregated parquets, figures, and per-seed `eval_checkpoints.jsonl` are
+tracked; model checkpoints, eval trajectories, per-seed training internals, and findings/writeup
+docs are kept local (regenerable from the Modal volume).
+
+---
+
+## Running
+
+All Python is run inside the `clinical-triage` conda environment. On machines with a polluting
+`PYTHONPATH` (e.g., ROS2), prefix commands with `PYTHONNOUSERSITE=1 PYTHONPATH=`:
+
+```bash
+# tests
+PYTHONNOUSERSITE=1 PYTHONPATH= conda run -n clinical-triage python -m pytest tests/ -q
+
+# train one (algo, seed) locally (e.g. SAC, smoke preset)
+PYTHONNOUSERSITE=1 PYTHONPATH= conda run -n clinical-triage \
+  python -m phase2_sac.train --algo sac --preset smoke --seed 0
+
+# scale out on Modal (one container per algo×seed; A100)
+PYTHONNOUSERSITE=1 PYTHONPATH= conda run -n clinical-triage \
+  modal run phase3_iql/modal_app.py --preset standard --algos iql,iql_kl_f
+```
+
+Each phase exposes a `train.py` CLI (`--algo`, `--preset {smoke,standard}`, `--seed`) and a
+`modal_app.py` for distributed runs. Figures are regenerated from `analysis/` and `evaluation/`.
 
 ---
 
