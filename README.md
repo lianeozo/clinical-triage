@@ -65,23 +65,23 @@ ventilation) to a clean triage core.
 
 ## Algorithms
 
-The study spans four algorithm families. **Implemented in this repository:**
+The study spans four algorithm families:
 
-- **Online** — DQN, PPO (`phase1_ppo_dqn/`); SAC, SAC-KL-F (feasibility penalty), SAC-KL-PPO
-  (KL anchor to a frozen PPO reference) (`phase2_sac/`).
+- **Rule-based baseline** — a deterministic **Heuristic** that maps the number of abnormal vitals
+  to a triage-only site-of-care decision, with no learning (`triage_rl/agents/`); it serves as a
+  control whose behavior is, by construction, invariant to the reward.
+- **Online** — DQN, **Double DQN**, PPO, **FactPPO** (`phase1_ppo_dqn/`); SAC, SAC-KL-F
+  (feasibility penalty), SAC-KL-PPO (KL anchor to a frozen PPO reference) (`phase2_sac/`).
 - **Offline** — IQL, IQL-KL-F (`phase3_iql/`), trained on a mixed dataset assembled from the
   online policies' trajectories.
 - **Model-based (exploratory)** — MBPO + MCTS planning: a recurrent ensemble dynamics model with
   PUCT-guided tree search at decision time (`phase4_mbpo_mcts/`).
 - **References** — RandomAgent and NoOpAgent (`triage_rl/agents/`).
 
-The shared **feasibility regularizer** (`L_feas = β·E_s[Σ_{a∉F(s)} π(a|s)]`) is used by SAC-KL-F
-and IQL-KL-F.
-
-> Three additional baselines that appear in the full comparison and the report — a rule-based
-> **Heuristic**, **Double DQN**, and **FactPPO** — were contributed by Liane Ozoemelam; their
-> training code lives in her workspace, while their evaluation outputs are consumed by the
-> plotting scripts in `analysis/`.
+**Double DQN** decouples action selection from evaluation to reduce the maximization bias of
+$Q$-learning; **FactPPO** augments PPO with a factorized policy head that decomposes the joint
+(SOC × treatment) action into conditionally independent sub-decisions. The shared **feasibility
+regularizer** (`L_feas = β·E_s[Σ_{a∉F(s)} π(a|s)]`) is used by SAC-KL-F and IQL-KL-F.
 
 ---
 
@@ -91,8 +91,8 @@ and IQL-KL-F.
 sepsisSimDiabetes/      # the POMDP simulator
   State.py, Action.py, MDP.py, reward_variants.py, DataGenerator.py
 triage_rl/              # shared harness: config, env wrapper, evaluator, logger,
-  agents/ (base, random, noop), trainers/ (off_policy, on_policy, offline)
-phase1_ppo_dqn/         # DQN, PPO        (agents/, train.py, modal_app.py, presets.py)
+  agents/ (base, heuristic, random, noop), trainers/ (off_policy, on_policy, offline)
+phase1_ppo_dqn/         # DQN, Double DQN, PPO, FactPPO  (agents/, train.py, modal_app.py, presets.py)
 phase2_sac/             # SAC + variants  (agents/, feasibility.py, train.py, modal_app.py)
 phase3_iql/             # IQL + IQL-KL-F  (agents/, dataset.py, reward-variant rebuild, train.py)
 phase4_mbpo_mcts/       # MBPO + MCTS     (agents/, trainers/outer_loop.py, train.py)
