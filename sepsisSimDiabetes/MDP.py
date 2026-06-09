@@ -133,6 +133,7 @@ class MDP(object):
                 f"reward_variant must be in {list(REWARD_VARIANTS.keys())}"
         self.reward_variant = reward_variant
         self._rv = REWARD_VARIANTS[reward_variant]
+        self.reward_version = f"reward{reward_variant}"
 
         # Check the policy dimensions (states x actions)
         if policy_array is not None and (not callable(policy_array)):
@@ -154,6 +155,9 @@ class MDP(object):
 
         self.policy_array = policy_array
         self.policy_idx_type = policy_idx_type  # Used for mapping the policy to actions
+
+        # Reward variant selector; canonical default is the original reward0.
+        self.reward_version = "reward0"
 
     def get_new_state(self, state_idx = None, idx_type = 'obs', diabetic_idx = None):
         '''
@@ -385,50 +389,13 @@ class MDP(object):
                     self.state.glucose_state = min(4, self.state.glucose_state + 1)
 
     def calculateReward(self, self_state, action):
-        rv = self._rv
-        reward = 0
-        num_abnormal = self.state.get_num_abnormal()
-        prev_abnormal = self_state.get_num_abnormal()
-
-        # Absorbing states
-        if num_abnormal >= 3:
-            reward -= rv["terminal"]
-            return reward
-        elif num_abnormal == 0 and not self.state.on_treatment():
-            reward += rv["terminal"]
-            return reward
-
-        # Vital sign trajectory feedback
-        change_in_abnormal = prev_abnormal - num_abnormal
-        reward += change_in_abnormal * 100
-
-        # SOC escalation / de-escalation cost
-        change_in_soc = self.state.soc_state - self_state.soc_state
-        if change_in_soc > 0 and num_abnormal == 0:
-            reward -= 200 * change_in_soc
-        if change_in_soc < 1 and num_abnormal >= 2 and self.state.soc_state < State.NUM_SOC - 1:
-            soc_gap = (State.NUM_SOC - 1) - self.state.soc_state
-            reward -= 100 * soc_gap
-        if change_in_soc != 0:
-            reward -= 50
-
-        # ICU overuse penalty (reward3 only)
-        if rv["icu_overuse"] and self.state.soc_state == State.ICU:
-            reward -= max(0, 2 - num_abnormal) * 50
-
-        # SOC resource cost (reward0 and reward4)
-        if rv["soc_costs"]:
-            reward -= SOC_RESOURCE_COSTS[self.state.soc_state]
-
-        # Treatment cost
-        if action.antibiotic == 1:
-            reward -= rv["anti"]
-        if action.ventilation == 1:
-            reward -= rv["vent"]
-        if action.vasopressors == 1:
-            reward -= rv["vaso"]
-
-        return reward
+        from .reward_variants import compute_reward
+        return compute_reward(
+            self_state.get_state_vector(),
+            action.get_action_idx(),
+            self.state.get_state_vector(),
+            self.reward_version,
+        )
 
     def transition(self, action):
         self.state = self.state.copy_state()

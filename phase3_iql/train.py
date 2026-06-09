@@ -54,7 +54,8 @@ def _serialize_config(obj):
 
 def run_one_seed(algo: str, preset_name: str, seed: int, out_root: Path,
                  eval_only: bool, run_name: str, device: str,
-                 dataset_path: Path | None = None) -> Path:
+                 dataset_path: Path | None = None,
+                 grad_steps_override: int | None = None) -> Path:
     preset = PRESETS[preset_name]
     out_dir = out_root / run_name / f"seed_{seed}"
     out_dir.mkdir(parents=True, exist_ok=True)
@@ -96,7 +97,8 @@ def run_one_seed(algo: str, preset_name: str, seed: int, out_root: Path,
         raise SystemExit(f"unknown algo {algo!r}; valid: iql, iql_kl_f, random, noop")
 
     trainer_cfg = OfflineConfig(
-        total_grad_steps=preset["total_grad_steps"],
+        total_grad_steps=(grad_steps_override if grad_steps_override is not None
+                          else preset["total_grad_steps"]),
         seed=seed, out_dir=out_dir,
         dataset_path=Path(dataset_path),
         eval_cadence=preset["eval_cadence"],
@@ -133,6 +135,8 @@ def main() -> None:
     p.add_argument("--device", default="auto")
     p.add_argument("--dataset-path", type=Path, default=None,
                    help="required for --algo iql or --algo iql_kl_f; path to offline_dataset.npz")
+    p.add_argument("--total-grad-steps", type=int, default=None,
+                   help="override preset's total_grad_steps (e.g. 200000)")
     args = p.parse_args()
 
     if args.all_seeds and args.seed is not None:
@@ -148,7 +152,8 @@ def main() -> None:
     for s in seeds:
         out_dir = run_one_seed(args.algo, args.preset, s, out_root,
                                eval_only=args.eval_only, run_name=run_name,
-                               device=device, dataset_path=args.dataset_path)
+                               device=device, dataset_path=args.dataset_path,
+                               grad_steps_override=args.total_grad_steps)
         print(f"[done] seed={s} -> {out_dir}")
 
 

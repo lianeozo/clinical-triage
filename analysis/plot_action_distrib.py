@@ -66,7 +66,7 @@ def _stacked_bars_for_step(ax, grouped: pd.DataFrame, title: str) -> None:
     ax.set_ylim(0, 1.05)
     ax.set_xticks(socs)
     ax.set_xticklabels(["ASYNC", "AMB", "FAC", "ICU"])
-    ax.set_title(title, fontsize=9)
+    ax.set_title(title)
 
 
 def _plot_one_algo(df: pd.DataFrame, algo: str, out_path: Path) -> None:
@@ -80,22 +80,28 @@ def _plot_one_algo(df: pd.DataFrame, algo: str, out_path: Path) -> None:
     rows = sorted(sub["num_abnormal"].unique())
     n_rows = len(rows)
 
-    fig, axes = plt.subplots(n_rows, 2, figsize=(9, 2.0 * n_rows), sharey=True, squeeze=False)
+    plt.rcParams.update({
+        "font.size": 9.5, "axes.titlesize": 10, "axes.labelsize": 9.5,
+        "xtick.labelsize": 8, "ytick.labelsize": 8, "legend.fontsize": 8.5,
+    })
+    fig, axes = plt.subplots(n_rows, 2, figsize=(7.2, 1.7 * n_rows), sharey=True, squeeze=False)
     for ri, num_abn in enumerate(rows):
         for ci, step in enumerate([first_step, last_step]):
             cell = _agg_seed_mean_fractions(
                 df[df["num_abnormal"] == num_abn], algo, step)
             ax = axes[ri][ci]
-            title = f"num_abnormal={num_abn}, step={step}"
+            phase = "untrained" if ci == 0 else "trained"
+            title = f"{num_abn} abnormal vital(s) ({phase})"
             _stacked_bars_for_step(ax, cell, title)
             if ci == 0:
                 ax.set_ylabel("action fraction")
-    # Legend on the top-right panel.
-    axes[0][-1].legend(loc="upper right", fontsize=7, bbox_to_anchor=(1.45, 1.0))
-    fig.suptitle(f"{algo.upper()} action distribution by SOC × num_abnormal_vitals", y=1.00)
-    fig.tight_layout()
+    # Shared legend BELOW the panels (clears the data; consistent with the curve figures).
+    handles, labels = axes[0][0].get_legend_handles_labels()
+    fig.legend(handles, labels, loc="lower center", ncol=4, frameon=False,
+               bbox_to_anchor=(0.5, -0.015), columnspacing=1.4, handlelength=1.6)
+    fig.tight_layout(rect=(0, 0.07, 1, 1))
     out_path.parent.mkdir(parents=True, exist_ok=True)
-    fig.savefig(out_path, dpi=120, bbox_inches="tight")
+    fig.savefig(out_path, dpi=200, bbox_inches="tight")
     plt.close(fig)
 
 
