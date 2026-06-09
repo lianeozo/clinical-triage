@@ -72,7 +72,11 @@ class DQNAgent(Agent):
 
         q = self.policy_net(obs).gather(1, action).squeeze(1)
         with torch.no_grad():
-            target_q_next = self.target_net(next_obs).max(dim=1).values
+            if self.cfg.double_dqn:
+                best_a = self.policy_net(next_obs).argmax(dim=1, keepdim=True)
+                target_q_next = self.target_net(next_obs).gather(1, best_a).squeeze(1)
+            else:
+                target_q_next = self.target_net(next_obs).max(dim=1).values
             target = reward + (1.0 - terminated.float()) * self.cfg.gamma * target_q_next
 
         loss = F.smooth_l1_loss(q, target)

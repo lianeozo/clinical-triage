@@ -94,16 +94,45 @@ for table in [INIT_SOC_PROBS, INIT_SOC_PROBS_SENSITIVITY]:
         assert abs(sum(row) - 1.0) < 1e-6
 
 
+# ----------------------------------------------------
+# REWARD VARIANT SPECS
+#
+# reward0: high terminal, SOC costs, no ICU overuse, standard treatment
+# reward1: low terminal, no SOC costs, no ICU overuse, standard treatment
+# reward2: low terminal, no SOC costs, no ICU overuse, stronger treatment (anti 6×, vent/vaso 2×)
+# reward3: low terminal, no SOC costs, severity-aware ICU overuse penalty, standard treatment
+# reward4: low terminal, SOC costs, no ICU overuse, standard treatment
+REWARD_VARIANTS = {
+    0: dict(terminal=10_000, soc_costs=True,  icu_overuse=False, anti=10, vent=60, vaso=40),
+    1: dict(terminal=1_000,  soc_costs=False, icu_overuse=False, anti=10, vent=60, vaso=40),
+    2: dict(terminal=1_000,  soc_costs=False, icu_overuse=False, anti=60, vent=120, vaso=80),
+    3: dict(terminal=1_000,  soc_costs=False, icu_overuse=True,  anti=10, vent=60, vaso=40),
+    4: dict(terminal=1_000,  soc_costs=True,  icu_overuse=False, anti=10, vent=60, vaso=40),
+}
+
+SOC_RESOURCE_COSTS = {
+    State.ASYNC: 0,
+    State.AMBULATORY: 5,
+    State.FACILITY: 20,
+    State.ICU: 50,
+}
+
+
 class MDP(object):
 
     def __init__(self, init_state_idx=None, init_state_idx_type='obs',
-            policy_array=None, policy_idx_type='obs', p_diabetes=0.2):
+            policy_array=None, policy_idx_type='obs', p_diabetes=0.2,
+            reward_variant: int = 0):
         '''
         initialize the simulator
         '''
         assert p_diabetes >= 0 and p_diabetes <= 1, \
                 "Invalid p_diabetes: {}".format(p_diabetes)
         assert policy_idx_type in ['obs', 'full', 'proj_obs']
+        assert reward_variant in REWARD_VARIANTS, \
+                f"reward_variant must be in {list(REWARD_VARIANTS.keys())}"
+        self.reward_variant = reward_variant
+        self._rv = REWARD_VARIANTS[reward_variant]
 
         # Check the policy dimensions (states x actions)
         if policy_array is not None and (not callable(policy_array)):
@@ -356,82 +385,48 @@ class MDP(object):
                     self.state.glucose_state = min(4, self.state.glucose_state + 1)
 
     def calculateReward(self, self_state, action):
+        rv = self._rv
         reward = 0
         num_abnormal = self.state.get_num_abnormal()
         prev_abnormal = self_state.get_num_abnormal()
 
-        #----------------------------------------------------
-        # Absorbing States
-        # ----------------------------------------------------
-
-        # Penalize death
+        # Absorbing states
         if num_abnormal >= 3:
-            reward -= 10_000
+            reward -= rv["terminal"]
             return reward
-        # Reward on discharge
         elif num_abnormal == 0 and not self.state.on_treatment():
-            reward += 10_000
+            reward += rv["terminal"]
             return reward
 
-
-        # ----------------------------------------------------
-        # Feedback from patient vital sign trajectory
-        # ----------------------------------------------------
-
+        # Vital sign trajectory feedback
         change_in_abnormal = prev_abnormal - num_abnormal
-        reward += change_in_abnormal * 100 # reward +100/-100 (weighted) for improvement/decline
+        reward += change_in_abnormal * 100
 
-        # ----------------------------------------------------
-        # Escalation + descalation cost
-        # ----------------------------------------------------
-
+        # SOC escalation / de-escalation cost
         change_in_soc = self.state.soc_state - self_state.soc_state
-
-        # Penalize unnecessary escalation
         if change_in_soc > 0 and num_abnormal == 0:
             reward -= 200 * change_in_soc
-
         if change_in_soc < 1 and num_abnormal >= 2 and self.state.soc_state < State.NUM_SOC - 1:
             soc_gap = (State.NUM_SOC - 1) - self.state.soc_state
             reward -= 100 * soc_gap
-
         if change_in_soc != 0:
             reward -= 50
 
+        # ICU overuse penalty (reward3 only)
+        if rv["icu_overuse"] and self.state.soc_state == State.ICU:
+            reward -= max(0, 2 - num_abnormal) * 50
 
+        # SOC resource cost (reward0 and reward4)
+        if rv["soc_costs"]:
+            reward -= SOC_RESOURCE_COSTS[self.state.soc_state]
 
-        # ----------------------------------------------------
-        # Severity-aware ICU overuse cost
-        # ----------------------------------------------------
-
-        #if self.state.soc_state == State.ICU:
-        #    reward -= max(0, 2 - num_abnormal) * 50
-
-        # ----------------------------------------------------
-        # SOC resource cost
-        # ----------------------------------------------------
-        if self.state.soc_state == State.ASYNC:
-            reward -= 0
-        elif self.state.soc_state == State.AMBULATORY:
-            reward -= 5
-        elif self.state.soc_state == State.FACILITY:
-            reward -= 20
-        elif self.state.soc_state == State.ICU:
-            reward -= 50
-
-
-        
-
-        # ----------------------------------------------------
-        # Treatment Cost
-        # ----------------------------------------------------
-
+        # Treatment cost
         if action.antibiotic == 1:
-            reward -= 10
+            reward -= rv["anti"]
         if action.ventilation == 1:
-            reward -= 60
+            reward -= rv["vent"]
         if action.vasopressors == 1:
-            reward -= 40
+            reward -= rv["vaso"]
 
         return reward
 

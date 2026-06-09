@@ -20,7 +20,8 @@ class DataGenerator(object):
 
     def simulate(self, num_iters, max_num_steps,
             policy=None, policy_idx_type='full', p_diabetes=0.2,
-            output_state_idx_type='obs', use_tqdm=False, tqdm_desc=''):
+            output_state_idx_type='obs', use_tqdm=False, tqdm_desc='',
+            reward_variant=0):
         '''
         policy is an array of probabilities
         '''
@@ -37,7 +38,7 @@ class DataGenerator(object):
         iter_component = np.zeros((num_iters, max_num_steps, 1), dtype=int)
         mdp = MDP(init_state_idx=None, # Random initial state
                   policy_array=policy, policy_idx_type=policy_idx_type,
-                  p_diabetes=p_diabetes)
+                  p_diabetes=p_diabetes, reward_variant=reward_variant)
 
         for itr in tqdm(range(num_iters), disable=not(use_tqdm), desc=tqdm_desc):
             # MDP will generate the diabetes index as well

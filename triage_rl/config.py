@@ -9,6 +9,7 @@ from pathlib import Path
 class EnvConfig:
     p_diabetes: float = 0.2
     max_steps: int = 100
+    reward_variant: int = 0  # 0–4; see sepsisSimDiabetes/MDP.py REWARD_VARIANTS
 
 
 @dataclass
@@ -48,6 +49,7 @@ class DQNAgentConfig:
     eps_start: float = 0.9
     eps_end: float = 0.01
     eps_decay_fraction: float = 0.8
+    double_dqn: bool = False
 
 
 @dataclass

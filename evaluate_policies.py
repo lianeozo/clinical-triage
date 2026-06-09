@@ -69,8 +69,8 @@ def choose_action_random_feasible(mdp: MDP):
 
 
 #rollout episdoes for max 200 steps
-def rollout_episode(policy_name: str, dqn_model=None, ppo_model=None, max_steps=200, p_diabetes=0.2):
-    mdp = MDP(init_state_idx=None, policy_array=None, policy_idx_type="obs", p_diabetes=p_diabetes)
+def rollout_episode(policy_name: str, dqn_model=None, ppo_model=None, max_steps=200, p_diabetes=0.2, reward_variant=0):
+    mdp = MDP(init_state_idx=None, policy_array=None, policy_idx_type="obs", p_diabetes=p_diabetes, reward_variant=reward_variant)
     mdp.state = mdp.get_new_state()
 
     total_reward = 0.0
@@ -154,12 +154,13 @@ def rollout_episode(policy_name: str, dqn_model=None, ppo_model=None, max_steps=
     }
 
 
-def evaluate(policy_name: str, N=200, max_steps=200, p_diabetes=0.2, dqn_model=None, ppo_model=None):
+def evaluate(policy_name: str, N=200, max_steps=200, p_diabetes=0.2, dqn_model=None, ppo_model=None, reward_variant=0):
 
     rows = []
     for _ in range(N):
         rows.append(
-            rollout_episode(policy_name, dqn_model=dqn_model, ppo_model=ppo_model, max_steps=max_steps, p_diabetes=p_diabetes)
+            rollout_episode(policy_name, dqn_model=dqn_model, ppo_model=ppo_model,
+                            max_steps=max_steps, p_diabetes=p_diabetes, reward_variant=reward_variant)
         )
 
     # aggregate

@@ -29,10 +29,12 @@ class Env(gymnasium.Env):
                             shape=(State.NUM_STATE_VARS,), dtype=np.float32)
     action_space = Discrete(Action.NUM_ACTIONS_TOTAL)
 
-    def __init__(self, p_diabetes: float = 0.2, max_steps: int = 100) -> None:
+    def __init__(self, p_diabetes: float = 0.2, max_steps: int = 100,
+                 reward_variant: int = 0) -> None:
         super().__init__()
         self.p_diabetes = p_diabetes
         self.max_steps = max_steps
+        self.reward_variant = reward_variant
         self.mdp: MDP | None = None
         self._step_count = 0
         self._np_random: np.random.Generator | None = None
@@ -46,7 +48,8 @@ class Env(gymnasium.Env):
         np.random.seed(global_seed)
         # If options has init_idx, the trainer/evaluator has already mapped it to a seed;
         # we just use the provided seed.
-        self.mdp = MDP(init_state_idx=None, policy_array=None, p_diabetes=self.p_diabetes)
+        self.mdp = MDP(init_state_idx=None, policy_array=None,
+                       p_diabetes=self.p_diabetes, reward_variant=self.reward_variant)
         self._step_count = 0
         obs = self.mdp.get_observation().astype(np.float32)
         info = {
