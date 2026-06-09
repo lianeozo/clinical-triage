@@ -3,10 +3,6 @@
 notes.md
 *.pkl*
 
-# Local-only Claude / superpowers artifacts
-docs/superpowers/
-.claude/
-
 # Results convention:
 #   results/<phase>/aggregated/*, results/<phase>/figures/*, and
 #   results/<phase>/_modal_pull/**/seed_*/eval_checkpoints.jsonl ARE pushed.
